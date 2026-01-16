@@ -846,13 +846,116 @@ void drawMainFunctionality() {
 void drawB24Placeholder() {
   gfx->fillScreen(COLOR_BLACK);
   
-  int16_t centerX = gfx->width() / 2;
-  int16_t centerY = gfx->height() / 2;
+  int16_t screenWidth = gfx->width();
+  int16_t screenHeight = gfx->height();
+  bool isLandscape = (currentRotation == 1 || currentRotation == 3);
   
-  // Draw "B24" text
-  drawCenteredText("B24", centerX, centerY - 40, selectedWorkColor, 4);
+  // Header
+  int16_t headerHeight = 30;
+  gfx->fillRect(0, 0, screenWidth, headerHeight, COLOR_DARK_BLUE);
+  drawCenteredText("Bitrix24", screenWidth / 2, headerHeight / 2, COLOR_WHITE, 2);
   
-  // Draw placeholder text
-  drawCenteredText("Notifications", centerX, centerY, COLOR_WHITE, 2);
-  drawCenteredText("Coming Soon", centerX, centerY + 30, COLOR_GRAY, 2);
+  int16_t contentStartY = headerHeight;
+  int16_t contentHeight = screenHeight - headerHeight;
+  
+  // Helper function to draw a section (just circle with number, no text)
+  auto drawSection = [&](int16_t x, int16_t y, int16_t w, int16_t h, 
+                         const char* label1, const char* label2, const char* badgeText) {
+    int16_t centerX = x + w / 2;
+    int16_t centerY = y + h / 2;
+    
+    // Draw border
+    gfx->drawRect(x, y, w, h, COLOR_GRAY);
+    
+    // Calculate badge size - use most of available space with padding
+    int16_t padding = 10;
+    int16_t badgeSize;
+    
+    if (isLandscape) {
+      // Landscape: use height with padding, but limit to reasonable size
+      badgeSize = h - padding * 2;
+      if (badgeSize > w * 0.5) badgeSize = w * 0.5;  // Limit to 50% of width
+    } else {
+      // Portrait: use width with padding, but limit to reasonable size
+      badgeSize = w - padding * 2;
+      if (badgeSize > h * 0.5) badgeSize = h * 0.5;  // Limit to 50% of height
+    }
+    
+    int16_t badgeRadius = badgeSize / 2;
+    
+    // Circle is perfectly centered in the cell
+    int16_t badgeX = centerX;
+    int16_t badgeY = centerY;
+    
+    // Draw circle centered
+    gfx->fillCircle(badgeX, badgeY, badgeRadius, selectedWorkColor);
+    gfx->drawCircle(badgeX, badgeY, badgeRadius, COLOR_WHITE);
+    
+    // Draw text centered in circle - use proper text centering
+    // ADJUSTABLE PARAMETERS for text position inside circle:
+    int16_t textOffsetX = 2;  // Move text right (increase) or left (decrease)
+    int16_t textOffsetY = 2;  // Move text down (increase) or up (decrease)
+    
+    uint8_t textSize = (badgeSize > 50) ? 4 : 3;
+    
+    // Get text bounds to properly center
+    int16_t x1, y1;
+    uint16_t textW, textH;
+    gfx->setFont(nullptr);
+    gfx->setTextSize(textSize, textSize, 0);
+    gfx->getTextBounds(badgeText, 0, 0, &x1, &y1, &textW, &textH);
+    
+    // Calculate text position: center of circle minus half text dimensions + offset
+    int16_t textX = badgeX - textW / 2 + textOffsetX;
+    // For vertical centering: badgeY is center, y1 is baseline offset (usually negative)
+    // We want: cursorY + y1 + textH/2 = badgeY
+    // So: cursorY = badgeY - y1 - textH/2
+    int16_t textY = badgeY - y1 - textH / 2 + textOffsetY;
+    
+    gfx->setCursor(textX, textY);
+    gfx->setTextColor(COLOR_WHITE);
+    gfx->print(badgeText);
+  };
+  
+  if (isLandscape) {
+    // Landscape: 3 columns, 1 row
+    int16_t sectionWidth = screenWidth / 3;
+    int16_t sectionHeight = contentHeight;
+    
+    // Section 1: Unread Messages
+    drawSection(0, contentStartY, sectionWidth, sectionHeight, 
+                "Unread Messages", "(All)", "0");
+    
+    // Section 2: Undone Tasks
+    drawSection(sectionWidth, contentStartY, sectionWidth, sectionHeight,
+                "Undone Tasks", "Auto & BP", "0");
+    
+    // Section 3: Groups & Projects
+    drawSection(sectionWidth * 2, contentStartY, sectionWidth, sectionHeight,
+                "Groups & Projects", "(All)", "0");
+    
+    // Draw vertical dividers
+    gfx->drawFastVLine(sectionWidth, contentStartY, sectionHeight, COLOR_GRAY);
+    gfx->drawFastVLine(sectionWidth * 2, contentStartY, sectionHeight, COLOR_GRAY);
+  } else {
+    // Portrait: 1 column, 3 rows
+    int16_t sectionWidth = screenWidth;
+    int16_t sectionHeight = contentHeight / 3;
+    
+    // Section 1: Unread Messages
+    drawSection(0, contentStartY, sectionWidth, sectionHeight,
+                "Unread Messages", "(All)", "0");
+    
+    // Section 2: Undone Tasks
+    drawSection(0, contentStartY + sectionHeight, sectionWidth, sectionHeight,
+                "Undone Tasks", "Auto & BP", "0");
+    
+    // Section 3: Groups & Projects
+    drawSection(0, contentStartY + sectionHeight * 2, sectionWidth, sectionHeight,
+                "Groups & Projects", "(All)", "0");
+    
+    // Draw horizontal dividers
+    gfx->drawFastHLine(0, contentStartY + sectionHeight, screenWidth, COLOR_GRAY);
+    gfx->drawFastHLine(0, contentStartY + sectionHeight * 2, screenWidth, COLOR_GRAY);
+  }
 }
