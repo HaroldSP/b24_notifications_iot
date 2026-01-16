@@ -4,6 +4,7 @@
 #include "pomodoro_globals.h"
 #include "pomodoro_config.h"
 #include "color_utils.h"
+#include "bitrix24.h"
 #include "FreeSansBold24pt7b.h"
 #include <math.h>
 
@@ -958,6 +959,25 @@ void drawB24Placeholder() {
     }
   };
   
+  // Get Bitrix24 counts
+  Bitrix24Counts counts = getBitrix24Counts();
+  
+  // Convert counts to strings
+  char msgCount[16];
+  char taskCount[16];
+  char groupCount[16];
+  
+  if (counts.valid) {
+    snprintf(msgCount, sizeof(msgCount), "%u", counts.unreadMessages);
+    snprintf(taskCount, sizeof(taskCount), "%u", counts.undoneTasks);
+    snprintf(groupCount, sizeof(groupCount), "%u", counts.groupsProjects);
+  } else {
+    // Use "0" if data not available yet
+    strcpy(msgCount, "0");
+    strcpy(taskCount, "0");
+    strcpy(groupCount, "0");
+  }
+  
   if (isLandscape) {
     // Landscape: 3 columns, 1 row
     int16_t sectionWidth = screenWidth / 3;
@@ -965,15 +985,15 @@ void drawB24Placeholder() {
     
     // Section 1: Unread Messages
     drawSection(0, contentStartY, sectionWidth, sectionHeight, 
-                "Unread Messages", "(All)", "0");
+                "Unread Messages", "(All)", msgCount);
     
     // Section 2: Undone Tasks
     drawSection(sectionWidth, contentStartY, sectionWidth, sectionHeight,
-                "Undone Tasks", "Auto & BP", "0");
+                "Undone Tasks", "Auto & BP", taskCount);
     
     // Section 3: Groups & Projects
     drawSection(sectionWidth * 2, contentStartY, sectionWidth, sectionHeight,
-                "Groups & Projects", "(All)", "0");
+                "Groups & Projects", "(All)", groupCount);
     
     // Draw vertical dividers
     gfx->drawFastVLine(sectionWidth, contentStartY, sectionHeight, COLOR_GRAY);
@@ -985,15 +1005,15 @@ void drawB24Placeholder() {
     
     // Section 1: Unread Messages
     drawSection(0, contentStartY, sectionWidth, sectionHeight,
-                "Unread Messages", "(All)", "0");
+                "Unread Messages", "(All)", msgCount);
     
     // Section 2: Undone Tasks
     drawSection(0, contentStartY + sectionHeight, sectionWidth, sectionHeight,
-                "Undone Tasks", "Auto & BP", "0");
+                "Undone Tasks", "Auto & BP", taskCount);
     
     // Section 3: Groups & Projects
     drawSection(0, contentStartY + sectionHeight * 2, sectionWidth, sectionHeight,
-                "Groups & Projects", "(All)", "0");
+                "Groups & Projects", "(All)", groupCount);
     
     // Draw horizontal dividers
     gfx->drawFastHLine(0, contentStartY + sectionHeight, screenWidth, COLOR_GRAY);

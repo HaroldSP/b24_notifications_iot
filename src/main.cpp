@@ -22,6 +22,7 @@
 #include "touch_handler.h"
 #include "display_updates.h"
 #include "auto_rotation.h"
+#include "bitrix24.h"
 
 // --- Arduino setup / loop ---
 void setup(void) {
@@ -78,6 +79,9 @@ void setup(void) {
   
   // Start Telegram task on separate core
   startTelegramTask();
+  
+  // Initialize Bitrix24
+  initBitrix24();
 
   displayStoppedState();
 }
@@ -92,6 +96,16 @@ void loop() {
   updateTimer();
   updateDisplay();
   checkAutoRotation();  // Check IMU for auto-rotation
+  
+  // Update Bitrix24 counts periodically (non-blocking)
+  if (shouldUpdateBitrix24()) {
+    Bitrix24Counts counts;
+    fetchBitrix24Counts(&counts);
+    // If we're on B24 screen, redraw it with new data
+    if (currentViewMode == VIEW_MODE_B24) {
+      drawB24Placeholder();
+    }
+  }
 
   // Tap indicator disabled for better touch responsiveness
   // (was causing lag due to drawing overhead)
