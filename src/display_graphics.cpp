@@ -867,18 +867,39 @@ void drawB24Placeholder() {
     // Draw border
     gfx->drawRect(x, y, w, h, COLOR_GRAY);
     
+    // Draw title at top of cell
+    // ADJUSTABLE PARAMETER for title position:
+    int16_t titleTopOffset = 12;  // Distance from top border to title (increase = move down)
+    
+    int16_t titleY = y + titleTopOffset;
+    drawCenteredText(label1, centerX, titleY, COLOR_WHITE, 1);
+    
     // Calculate badge size - use most of available space with padding
-    int16_t padding = 10;
+    // ADJUSTABLE PARAMETERS for circle size calculation:
+    int16_t padding = 10;                    // Padding around circle (decrease = bigger circle)
+    float landscapeWidthPercent = 0.75;      // Landscape: max % of cell width (increase = bigger)
+    float portraitHeightPercent = 0.5;       // Portrait: max % of cell height (increase = bigger)
+    
     int16_t badgeSize;
     
     if (isLandscape) {
-      // Landscape: use height with padding, but limit to reasonable size
+      // HORIZONTAL MODE CALCULATION:
+      // Step 1: Try to use full height minus padding
       badgeSize = h - padding * 2;
-      if (badgeSize > w * 0.5) badgeSize = w * 0.5;  // Limit to 50% of width
+      // Step 2: Limit to percentage of width (prevents circle from being too wide)
+      // Formula: badgeSize = min(h - padding*2, w * landscapeWidthPercent)
+      if (badgeSize > w * landscapeWidthPercent) {
+        badgeSize = w * landscapeWidthPercent;
+      }
     } else {
-      // Portrait: use width with padding, but limit to reasonable size
+      // VERTICAL MODE CALCULATION:
+      // Step 1: Try to use full width minus padding
       badgeSize = w - padding * 2;
-      if (badgeSize > h * 0.5) badgeSize = h * 0.5;  // Limit to 50% of height
+      // Step 2: Limit to percentage of height (prevents circle from being too tall)
+      // Formula: badgeSize = min(w - padding*2, h * portraitHeightPercent)
+      if (badgeSize > h * portraitHeightPercent) {
+        badgeSize = h * portraitHeightPercent;
+      }
     }
     
     int16_t badgeRadius = badgeSize / 2;
@@ -915,6 +936,15 @@ void drawB24Placeholder() {
     gfx->setCursor(textX, textY);
     gfx->setTextColor(COLOR_WHITE);
     gfx->print(badgeText);
+    
+    // Draw subtitle at bottom of cell
+    // ADJUSTABLE PARAMETER for subtitle position:
+    int16_t subtitleBottomOffset = 12;  // Distance from bottom border to subtitle (increase = move up)
+    
+    int16_t subtitleY = y + h - subtitleBottomOffset;
+    if (label2) {
+      drawCenteredText(label2, centerX, subtitleY, COLOR_GRAY, 1);
+    }
   };
   
   if (isLandscape) {
