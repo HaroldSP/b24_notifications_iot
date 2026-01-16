@@ -917,14 +917,25 @@ void drawB24Placeholder() {
     int16_t textOffsetX = 2;  // Move text right (increase) or left (decrease)
     int16_t textOffsetY = 2;  // Move text down (increase) or up (decrease)
     
+    // Calculate text size - start with base size and scale down if needed
     uint8_t textSize = (badgeSize > 50) ? 4 : 3;
     
-    // Get text bounds to properly center
+    // Get text bounds to check if text fits in circle
     int16_t x1, y1;
     uint16_t textW, textH;
     gfx->setFont(nullptr);
     gfx->setTextSize(textSize, textSize, 0);
     gfx->getTextBounds(badgeText, 0, 0, &x1, &y1, &textW, &textH);
+    
+    // Scale down text size if it doesn't fit in circle (with some margin)
+    // Allow text to use ~80% of circle diameter (radius * 1.6 = 0.8 * diameter)
+    int16_t maxTextWidth = badgeRadius * 1.6;
+    int16_t maxTextHeight = badgeRadius * 1.6;
+    while ((textW > maxTextWidth || textH > maxTextHeight) && textSize > 1) {
+      textSize--;
+      gfx->setTextSize(textSize, textSize, 0);
+      gfx->getTextBounds(badgeText, 0, 0, &x1, &y1, &textW, &textH);
+    }
     
     // Calculate text position: center of circle minus half text dimensions + offset
     int16_t textX = badgeX - textW / 2 + textOffsetX;
