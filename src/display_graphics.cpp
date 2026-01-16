@@ -674,8 +674,8 @@ void drawTomatoIcon(int16_t cx, int16_t cy, int16_t size, uint16_t color) {
   // Draw a simple tomato shape: circle with a small stem on top
   int16_t radius = size / 2 - 2;
   
-  // Draw main tomato body (circle)
-  gfx->fillCircle(cx, cy, radius, color);
+  // Draw main tomato body (circle) - always red
+  gfx->fillCircle(cx, cy, radius, COLOR_RED);
   gfx->drawCircle(cx, cy, radius, COLOR_BLACK);
   
   // Draw stem on top (small rectangle)
@@ -697,26 +697,39 @@ void drawPaletteIcon(int16_t cx, int16_t cy, int16_t size, uint16_t color) {
   int16_t cornerRadius = size / 8;
   int16_t thumbHoleRadius = size / 6;
   
-  // Draw main palette body (rounded rectangle)
-  gfx->fillRoundRect(cx - width/2, cy - height/2, width, height, cornerRadius, color);
+  // Draw main palette body (rounded rectangle) - always brown
+  gfx->fillRoundRect(cx - width/2, cy - height/2, width, height, cornerRadius, COLOR_COFFEE);
   gfx->drawRoundRect(cx - width/2, cy - height/2, width, height, cornerRadius, COLOR_BLACK);
   
-  // Draw thumb hole (circle on left side)
-  int16_t thumbX = cx - width/2 + thumbHoleRadius;
+  // Draw thumb hole (circle on left side, shifted right a bit)
+  int16_t thumbX = cx - width/2 + thumbHoleRadius + size/12;  // Moved right
   int16_t thumbY = cy;
   gfx->fillCircle(thumbX, thumbY, thumbHoleRadius, COLOR_BLACK);
   
   // Draw small color dots on palette (representing paint)
-  int16_t dotRadius = size / 12;
-  int16_t dotSpacing = size / 4;
-  int16_t startX = cx - width/4;
-  int16_t startY = cy - height/4;
+  // Position dots to avoid thumb hole and edges
+  int16_t dotRadius = size / 14;  // Slightly smaller dots
+  int16_t dotSpacing = size / 5;   // Closer spacing between dots
+  int16_t thumbAreaRight = thumbX + thumbHoleRadius + dotRadius + 2; // Right edge of thumb hole area
+  int16_t startX = cx + size/20;  // Moved right (positive offset)
+  int16_t startY = cy - height/6;  // Moved down (less negative offset)
   
-  // Draw 3-4 color dots
-  gfx->fillCircle(startX, startY, dotRadius, COLOR_RED);
-  gfx->fillCircle(startX + dotSpacing, startY, dotRadius, COLOR_BLUE);
-  gfx->fillCircle(startX, startY + dotSpacing, dotRadius, COLOR_GREEN);
-  gfx->fillCircle(startX + dotSpacing, startY + dotSpacing, dotRadius, COLOR_YELLOW);
+  // Draw 4 color dots in a 2x2 grid, avoiding thumb hole area
+  if (startX - dotSpacing/2 > thumbAreaRight) {
+    // Top row
+    gfx->fillCircle(startX - dotSpacing/2, startY, dotRadius, COLOR_RED);
+    gfx->fillCircle(startX + dotSpacing/2, startY, dotRadius, COLOR_BLUE);
+    // Bottom row
+    gfx->fillCircle(startX - dotSpacing/2, startY + dotSpacing, dotRadius, COLOR_GREEN);
+    gfx->fillCircle(startX + dotSpacing/2, startY + dotSpacing, dotRadius, COLOR_YELLOW);
+  } else {
+    // If thumb hole takes too much space, use single row shifted right
+    startX = cx + size/15;  // Shift right (positive offset)
+    gfx->fillCircle(startX, startY, dotRadius, COLOR_RED);
+    gfx->fillCircle(startX + dotSpacing, startY, dotRadius, COLOR_BLUE);
+    gfx->fillCircle(startX, startY + dotSpacing, dotRadius, COLOR_GREEN);
+    gfx->fillCircle(startX + dotSpacing, startY + dotSpacing, dotRadius, COLOR_YELLOW);
+  }
 }
 
 // --- Helper: draw main functionality screen ---
