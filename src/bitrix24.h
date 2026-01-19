@@ -10,7 +10,8 @@ struct Bitrix24Counts {
   uint16_t unreadMessages;       // Unread messages in dialogs (TYPE.DIALOG)
   uint16_t totalUnreadMessages;  // Total unread messages (TYPE.ALL or TYPE.MESSENGER)
   uint16_t undoneTasks;          // Undone RPA user tasks (from RPA / user processes)
-  uint16_t groupsProjects;       // Groups & projects notifications
+  uint16_t expiredTasks;         // Expired (late) tasks/projects
+  uint16_t totalComments;        // Total comments count (for subtitle)
   bool valid;                    // Whether data is valid
   unsigned long lastUpdate;      // Last update timestamp
 };

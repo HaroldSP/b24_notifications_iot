@@ -860,14 +860,13 @@ void drawB24Placeholder() {
   int16_t contentHeight = screenHeight - headerHeight;
   
   // Helper function to draw a section (just circle with number, no text)
-  // If totalUnreadCount > 0, label2 is ignored and subtitle shows "All unread msg: [totalUnreadCount]" with number in red
+  // If totalUnreadCount > 0, label2 is ignored and subtitle shows "All msgs: [totalUnreadCount]" with number in red
+  // If totalComments > 0, label2 is ignored and subtitle shows "All tasks: [totalComments]" with number in red
   auto drawSection = [&](int16_t x, int16_t y, int16_t w, int16_t h, 
-                         const char* label1, const char* label2, const char* badgeText, uint16_t totalUnreadCount = 0) {
+                         const char* label1, const char* label2, const char* badgeText, 
+                         uint16_t totalUnreadCount = 0, uint16_t totalComments = 0) {
     int16_t centerX = x + w / 2;
     int16_t centerY = y + h / 2;
-    
-    // Draw border
-    gfx->drawRect(x, y, w, h, COLOR_GRAY);
     
     // Draw title at top of cell
     // ADJUSTABLE PARAMETER for title position:
@@ -956,7 +955,7 @@ void drawB24Placeholder() {
     
     int16_t subtitleY = y + h - subtitleBottomOffset;
     if (totalUnreadCount > 0) {
-      // Special case: show "All unread msg: [NUMBER]" with number in red
+      // Special case: show "All msgs: [NUMBER]" with number in red
       char subtitleText[32];
       snprintf(subtitleText, sizeof(subtitleText), "All msgs: ");
       
@@ -988,6 +987,36 @@ void drawB24Placeholder() {
       gfx->setCursor(textX + textW, numberTextY);
       gfx->setTextColor(COLOR_RED);
       gfx->print(numberText);
+    } else if (totalComments > 0) {
+      // Special case: show "All tasks: [NUMBER]" with number in red
+      char subtitleText[32];
+      snprintf(subtitleText, sizeof(subtitleText), "All tasks: ");
+      
+      // Draw "All tasks: " in gray - use same vertical centering as drawCenteredText
+      int16_t x1, y1;
+      uint16_t textW, textH;
+      gfx->setFont(nullptr);
+      gfx->setTextSize(1, 1, 0);
+      gfx->getTextBounds(subtitleText, 0, 0, &x1, &y1, &textW, &textH);
+      
+      int16_t subtitleTextY = subtitleY - y1 - (int16_t)textH / 2;
+      
+      int16_t textX = centerX - textW / 2;
+      gfx->setCursor(textX, subtitleTextY);
+      gfx->setTextColor(COLOR_GRAY);
+      gfx->print(subtitleText);
+      
+      // Draw number in red - get bounds for number text too
+      char numberText[16];
+      snprintf(numberText, sizeof(numberText), "%u", totalComments);
+      int16_t numX1, numY1;
+      uint16_t numW, numH;
+      gfx->getTextBounds(numberText, 0, 0, &numX1, &numY1, &numW, &numH);
+      int16_t numberTextY = subtitleY - numY1 - (int16_t)numH / 2;
+      
+      gfx->setCursor(textX + textW, numberTextY);
+      gfx->setTextColor(COLOR_RED);
+      gfx->print(numberText);
     } else if (label2) {
       drawCenteredText(label2, centerX, subtitleY, COLOR_GRAY, 1);
     }
@@ -999,17 +1028,17 @@ void drawB24Placeholder() {
   // Convert counts to strings
   char msgCount[16];
   char taskCount[16];
-  char groupCount[16];
+  char expiredCount[16];
   
   if (counts.valid) {
     snprintf(msgCount, sizeof(msgCount), "%u", counts.unreadMessages);
     snprintf(taskCount, sizeof(taskCount), "%u", counts.undoneTasks);
-    snprintf(groupCount, sizeof(groupCount), "%u", counts.groupsProjects);
+    snprintf(expiredCount, sizeof(expiredCount), "%u", counts.expiredTasks);
   } else {
     // Use "0" if data not available yet
     strcpy(msgCount, "0");
     strcpy(taskCount, "0");
-    strcpy(groupCount, "0");
+    strcpy(expiredCount, "0");
   }
   
   if (isLandscape) {
@@ -1025,9 +1054,9 @@ void drawB24Placeholder() {
     drawSection(sectionWidth, contentStartY, sectionWidth, sectionHeight,
                 "Undone Tasks", "Auto & BP", taskCount);
     
-    // Section 3: Groups & Projects
+    // Section 3: Expired Tasks (show total comments in subtitle with red number)
     drawSection(sectionWidth * 2, contentStartY, sectionWidth, sectionHeight,
-                "Groups & Projects", "(All)", groupCount);
+                "Expired Tasks", "", expiredCount, 0, counts.totalComments);
     
     // Draw vertical dividers
     gfx->drawFastVLine(sectionWidth, contentStartY, sectionHeight, COLOR_GRAY);
@@ -1045,9 +1074,9 @@ void drawB24Placeholder() {
     drawSection(0, contentStartY + sectionHeight, sectionWidth, sectionHeight,
                 "Undone Tasks", "Auto & BP", taskCount);
     
-    // Section 3: Groups & Projects
+    // Section 3: Expired Tasks (show total comments in subtitle with red number)
     drawSection(0, contentStartY + sectionHeight * 2, sectionWidth, sectionHeight,
-                "Groups & Projects", "(All)", groupCount);
+                "Expired Tasks", "", expiredCount, 0, counts.totalComments);
     
     // Draw horizontal dividers
     gfx->drawFastHLine(0, contentStartY + sectionHeight, screenWidth, COLOR_GRAY);
