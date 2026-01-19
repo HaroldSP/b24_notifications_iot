@@ -1,6 +1,7 @@
 // Bitrix24 API integration implementation
 
 #include "bitrix24.h"
+#include "wifi_telegram.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
@@ -18,6 +19,8 @@ unsigned long bitrix24UpdateInterval = 30000;
 
 // Cached counts
 static Bitrix24Counts cachedCounts = {0, 0, 0, 0, 0, false, 0};
+// Previous counts for change detection
+static Bitrix24Counts previousCounts = {0, 0, 0, 0, 0, false, 0};
 
 // Current Bitrix24 user ID (determined at runtime via user.current)
 static uint32_t bitrixCurrentUserId = 0;
@@ -435,6 +438,52 @@ static bool fetchTotalComments(uint16_t* count) {
   return true;
 }
 
+// Check for changes and send Telegram notifications
+static void checkAndNotifyChanges(const Bitrix24Counts& newCounts) {
+  // Skip if previous counts are not valid (first run)
+  if (!previousCounts.valid) {
+    previousCounts = newCounts;
+    return;
+  }
+
+  // Check for changes in the 3 main numbers
+  if (previousCounts.unreadMessages != newCounts.unreadMessages) {
+    String msg = "📨 <b>Unread Messages:</b> ";
+    msg += String(newCounts.unreadMessages);
+    if (newCounts.unreadMessages > previousCounts.unreadMessages) {
+      msg += " ⬆️";
+    } else {
+      msg += " ⬇️";
+    }
+    sendTelegramMessage(msg);
+  }
+
+  if (previousCounts.undoneTasks != newCounts.undoneTasks) {
+    String msg = "📋 <b>Undone Tasks:</b> ";
+    msg += String(newCounts.undoneTasks);
+    if (newCounts.undoneTasks > previousCounts.undoneTasks) {
+      msg += " ⬆️";
+    } else {
+      msg += " ⬇️";
+    }
+    sendTelegramMessage(msg);
+  }
+
+  if (previousCounts.expiredTasks != newCounts.expiredTasks) {
+    String msg = "⏰ <b>Expired Tasks:</b> ";
+    msg += String(newCounts.expiredTasks);
+    if (newCounts.expiredTasks > previousCounts.expiredTasks) {
+      msg += " ⬆️";
+    } else {
+      msg += " ⬇️";
+    }
+    sendTelegramMessage(msg);
+  }
+
+  // Update previous counts
+  previousCounts = newCounts;
+}
+
 // Fetch all notification counts from Bitrix24
 bool fetchBitrix24Counts(Bitrix24Counts* counts) {
   if (!counts) return false;
@@ -472,6 +521,11 @@ bool fetchBitrix24Counts(Bitrix24Counts* counts) {
   counts->lastUpdate = millis();
 
   cachedCounts = *counts;
+
+  // Check for changes and send notifications
+  if (success) {
+    checkAndNotifyChanges(*counts);
+  }
 
   Serial.print("Bitrix24: Dialogs: ");
   Serial.print(unread);

@@ -97,7 +97,7 @@ void initTelegramBot() {
   Serial.println("Telegram bot initialized");
   
   // Send startup message
-  bot->sendMessage(chatId, "🍅 Pomodoro Timer connected!", "HTML");
+  bot->sendMessage(chatId, "@office_b24_bot connected", "HTML");
 }
 
 // Queue message to Telegram (non-blocking)
@@ -148,13 +148,16 @@ void telegramTask(void* parameter) {
         Serial.println(text);
         
         if (text == "/start" || text == "/help") {
-          String msg = "🍅 <b>Pomodoro Timer</b>\n\n";
+          String msg = "📊 <b>@office_b24_bot</b>\n\n";
+          msg += "<b>Pomodoro:</b>\n";
           msg += "/status - Current status\n";
           msg += "/work - Start work\n";
           msg += "/pause - Pause\n";
           msg += "/resume - Resume\n";
           msg += "/stop - Stop\n";
-          msg += "/mode - Change mode";
+          msg += "/mode - Change mode\n\n";
+          msg += "<b>Bitrix24:</b>\n";
+          msg += "Notifications sent when counts change";
           bot->sendMessage(chatId, msg, "HTML");
         }
         else if (text == "/work") {
