@@ -463,10 +463,14 @@ void handleTouchInput() {
         currentViewMode = VIEW_MODE_B24;
         drawB24Placeholder();
       } else if (inMainMenuTomatoBtn) {
-        // Tomato button clicked - return to home/timer screen
+        // Tomato button clicked - return to home/timer screen and start timer
         Serial.println("*** MAIN MENU TOMATO BUTTON CLICKED ***");
         currentViewMode = VIEW_MODE_HOME;
-        displayStoppedState();
+        if (currentState == STOPPED) {
+          startTimer();
+        } else {
+          displayStoppedState();
+        }
       } else if (inMainMenuPaletteBtn) {
         // Palette button clicked - open color preview screen
         Serial.println("*** MAIN MENU PALETTE BUTTON CLICKED ***");
@@ -547,13 +551,19 @@ void handleTouchInput() {
       Serial.print("*** LONG PRESS detected! (");
       Serial.print(elapsed);
       Serial.println(" ms) ***");
-      // Execute long press action immediately
-      if (currentState == STOPPED) {
-        Serial.println("-> Starting timer");
-        startTimer();
-      } else {
-        Serial.println("-> Stopping timer");
+      
+      // Long press behavior:
+      // - If timer is running/paused: stop timer and go to home
+      // - If on other screens: go to home
+      if (currentState == RUNNING || currentState == PAUSED) {
+        Serial.println("-> Stopping timer and returning to home");
         stopTimer();
+        currentViewMode = VIEW_MODE_HOME;
+        displayStoppedState();
+      } else if (currentViewMode != VIEW_MODE_HOME) {
+        Serial.println("-> Returning to home menu");
+        currentViewMode = VIEW_MODE_HOME;
+        displayStoppedState();
       }
       // Don't reset - only one long press per touch
     }
