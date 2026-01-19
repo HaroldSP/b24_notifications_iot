@@ -98,11 +98,13 @@ void loop() {
   checkAutoRotation();  // Check IMU for auto-rotation
   
   // Update Bitrix24 counts periodically (non-blocking)
+  // Only update if enough time has passed to avoid blocking
   if (shouldUpdateBitrix24()) {
+    // Don't block - update in background
     Bitrix24Counts counts;
-    fetchBitrix24Counts(&counts);
+    bool success = fetchBitrix24Counts(&counts);
     // If we're on B24 screen, redraw it with new data
-    if (currentViewMode == VIEW_MODE_B24) {
+    if (currentViewMode == VIEW_MODE_B24 && success) {
       drawB24Placeholder();
     }
   }

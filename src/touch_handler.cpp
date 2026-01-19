@@ -144,18 +144,15 @@ void handleTouchInput() {
     }
   }
   
-  // Consider touch active if:
-  // 1. TP_INT is currently LOW, OR
-  // 2. TP_INT was LOW recently (within debounce window), OR  
-  // 3. TP_INT has been HIGH for less than debounce time (might be noise)
-  bool currentlyTouched = tpIntLow || 
-                          (millis() - lastTpIntLowTime < TP_INT_DEBOUNCE_MS) ||
-                          (lastTpIntHighTime > 0 && (millis() - lastTpIntHighTime < TP_INT_DEBOUNCE_MS));
-  
-  // Read touch data for coordinates (but don't use it for state detection)
+  // Read touch data for coordinates
   readTouchData();
 
-  // Capture last valid touch position whenever a touch is active
+  // Consider touch active if TP_INT is LOW (original logic with debouncing)
+  // Use debounce logic to handle noise but still detect touches
+  bool currentlyTouched = tpIntLow || 
+                          (millis() - lastTpIntLowTime < TP_INT_DEBOUNCE_MS);
+  
+  // Capture last valid touch position whenever we have touch data
   if (touch_points.touch_num > 0) {
     lastTouchX = touch_points.coords[0].x;
     lastTouchY = touch_points.coords[0].y;

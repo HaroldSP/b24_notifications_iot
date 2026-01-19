@@ -860,8 +860,9 @@ void drawB24Placeholder() {
   int16_t contentHeight = screenHeight - headerHeight;
   
   // Helper function to draw a section (just circle with number, no text)
+  // If totalUnreadCount > 0, label2 is ignored and subtitle shows "All unread msg: [totalUnreadCount]" with number in red
   auto drawSection = [&](int16_t x, int16_t y, int16_t w, int16_t h, 
-                         const char* label1, const char* label2, const char* badgeText) {
+                         const char* label1, const char* label2, const char* badgeText, uint16_t totalUnreadCount = 0) {
     int16_t centerX = x + w / 2;
     int16_t centerY = y + h / 2;
     
@@ -954,7 +955,40 @@ void drawB24Placeholder() {
     int16_t subtitleBottomOffset = 12;  // Distance from bottom border to subtitle (increase = move up)
     
     int16_t subtitleY = y + h - subtitleBottomOffset;
-    if (label2) {
+    if (totalUnreadCount > 0) {
+      // Special case: show "All unread msg: [NUMBER]" with number in red
+      char subtitleText[32];
+      snprintf(subtitleText, sizeof(subtitleText), "All msgs: ");
+      
+      // Draw "All msgs: " in gray - use same vertical centering as drawCenteredText
+      int16_t x1, y1;
+      uint16_t textW, textH;
+      gfx->setFont(nullptr);
+      gfx->setTextSize(1, 1, 0);
+      gfx->getTextBounds(subtitleText, 0, 0, &x1, &y1, &textW, &textH);
+      
+      // ADJUSTABLE PARAMETER for subtitle vertical position:
+      // Adjust subtitleY to move text up (decrease) or down (increase)
+      // Formula matches drawCenteredText: cursorY = targetY - y1 - h/2
+      int16_t subtitleTextY = subtitleY - y1 - (int16_t)textH / 2;
+      
+      int16_t textX = centerX - textW / 2;
+      gfx->setCursor(textX, subtitleTextY);
+      gfx->setTextColor(COLOR_GRAY);
+      gfx->print(subtitleText);
+      
+      // Draw number in red - get bounds for number text too
+      char numberText[16];
+      snprintf(numberText, sizeof(numberText), "%u", totalUnreadCount);
+      int16_t numX1, numY1;
+      uint16_t numW, numH;
+      gfx->getTextBounds(numberText, 0, 0, &numX1, &numY1, &numW, &numH);
+      int16_t numberTextY = subtitleY - numY1 - (int16_t)numH / 2;
+      
+      gfx->setCursor(textX + textW, numberTextY);
+      gfx->setTextColor(COLOR_RED);
+      gfx->print(numberText);
+    } else if (label2) {
       drawCenteredText(label2, centerX, subtitleY, COLOR_GRAY, 1);
     }
   };
@@ -983,9 +1017,9 @@ void drawB24Placeholder() {
     int16_t sectionWidth = screenWidth / 3;
     int16_t sectionHeight = contentHeight;
     
-    // Section 1: Unread Messages
+    // Section 1: Unread Messages (show total unread in subtitle)
     drawSection(0, contentStartY, sectionWidth, sectionHeight, 
-                "Unread Messages", "(All)", msgCount);
+                "Unread Messages", "(Dialogs)", msgCount, counts.totalUnreadMessages);
     
     // Section 2: Undone Tasks
     drawSection(sectionWidth, contentStartY, sectionWidth, sectionHeight,
@@ -1003,9 +1037,9 @@ void drawB24Placeholder() {
     int16_t sectionWidth = screenWidth;
     int16_t sectionHeight = contentHeight / 3;
     
-    // Section 1: Unread Messages
+    // Section 1: Unread Messages (show total unread in subtitle)
     drawSection(0, contentStartY, sectionWidth, sectionHeight,
-                "Unread Messages", "(All)", msgCount);
+                "Unread Messages", "(Dialogs)", msgCount, counts.totalUnreadMessages);
     
     // Section 2: Undone Tasks
     drawSection(0, contentStartY + sectionHeight, sectionWidth, sectionHeight,

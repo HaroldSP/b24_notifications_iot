@@ -17,37 +17,29 @@
 unsigned long bitrix24UpdateInterval = 30000;
 
 // Cached counts
-static Bitrix24Counts cachedCounts = {0, 0, 0, false, 0};
+static Bitrix24Counts cachedCounts = {0, 0, 0, 0, false, 0};
 
 // Helper: Make HTTP GET request to Bitrix24 REST API
-String bitrix24Request(const char* method, const char* params = "") {
+static String bitrix24Request(const char* method, const char* params = "") {
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("Bitrix24: WiFi not connected");
     return "";
   }
 
   HTTPClient http;
   String url = String(BITRIX_HOSTNAME) + String(BITRIX_REST_ENDPOINT) + String(method);
-  if (strlen(params) > 0) {
-    url += "?" + String(params);
+  if (params && strlen(params) > 0) {
+    url += "?";
+    url += params;
   }
 
-  Serial.print("Bitrix24: Requesting ");
-  Serial.println(url);
-
   http.begin(url);
-  http.setTimeout(10000); // 10 second timeout
-  
-  int httpCode = http.GET();
-  String payload = "";
+  http.setTimeout(5000);
 
-  if (httpCode > 0) {
+  int httpCode = http.GET();
+  String payload;
+
+  if (httpCode == 200) {
     payload = http.getString();
-    Serial.print("Bitrix24: Response code ");
-    Serial.println(httpCode);
-  } else {
-    Serial.print("Bitrix24: Request failed, error: ");
-    Serial.println(httpCode);
   }
 
   http.end();
@@ -61,154 +53,135 @@ void initBitrix24() {
   cachedCounts.lastUpdate = 0;
 }
 
-// Fetch unread messages count
-bool fetchUnreadMessages(uint16_t* count) {
-  String response = bitrix24Request("im.counters.get");
+// Fetch unread dialogs count
+// Strategy: Use im.counters.get → TYPE.DIALOG (number of dialogs with unread messages)
+static bool fetchUnreadMessages(uint16_t* count) {
+  if (!count) return false;
+
+  String response = bitrix24Request("im.counters.get", "");
   if (response.length() == 0) {
     return false;
   }
 
-  // Increase buffer size for larger responses
   DynamicJsonDocument doc(4096);
-  DeserializationError error = deserializeJson(doc, response);
+  DeserializationError err = deserializeJson(doc, response);
+  response = "";
 
-  if (error) {
-    Serial.print("Bitrix24: JSON parse error for im.counters.get: ");
-    Serial.println(error.c_str());
+  if (err || !doc["result"].is<JsonObject>()) {
     return false;
   }
 
-  // Get TYPE.DIALOG counter (only messenger dialogs, not task chats)
-  if (doc["result"]["TYPE"]["DIALOG"].is<int>()) {
-    *count = doc["result"]["TYPE"]["DIALOG"].as<int>();
-    return true;
+  JsonObject result = doc["result"].as<JsonObject>();
+
+  // Debug: print TYPE values to inspect counters (ALL, CHAT, DIALOG, MESSENGER, etc.)
+  if (result["TYPE"].is<JsonObject>()) {
+    JsonObject type = result["TYPE"].as<JsonObject>();
+    Serial.print("Bitrix24 TYPE: ");
+    for (JsonPair kv : type) {
+      Serial.print(kv.key().c_str());
+      Serial.print("=");
+      if (kv.value().is<int>()) {
+        Serial.print(kv.value().as<int>());
+      }
+      Serial.print(" ");
+    }
+    Serial.println();
   }
 
-  return false;
+  uint16_t unreadDialogs = 0;
+
+  // Preferred: TYPE.DIALOG
+  if (result["TYPE"].is<JsonObject>()) {
+    JsonObject type = result["TYPE"].as<JsonObject>();
+    if (type["DIALOG"].is<int>()) {
+      unreadDialogs = type["DIALOG"].as<int>();
+    }
+  }
+
+  // Fallback: direct DIALOG field
+  if (unreadDialogs == 0 && result["DIALOG"].is<int>()) {
+    unreadDialogs = result["DIALOG"].as<int>();
+  }
+
+  *count = unreadDialogs;
+
+  // Compact log
+  Serial.print("Bitrix24: Unread messages (dialogs): ");
+  Serial.println(*count);
+
+  return true;
 }
 
-// Fetch undone automation & business process tasks
-bool fetchUndoneTasks(uint16_t* count) {
-  // Get business process tasks for current user only
-  // Using START=0 to get first page, we only need the total count
-  String response = bitrix24Request("bizproc.task.list", "START=0");
+// Fetch total unread messages (all types: dialogs + chats + groups)
+// Returns TYPE.ALL or TYPE.MESSENGER
+static bool fetchTotalUnreadMessages(uint16_t* count) {
+  if (!count) return false;
+
+  String response = bitrix24Request("im.counters.get", "");
   if (response.length() == 0) {
     return false;
   }
 
-  // Increase buffer size for large responses (~19KB)
-  // Use larger buffer to handle full response
-  DynamicJsonDocument doc(24576); // 24KB buffer for large task lists
-  DeserializationError error = deserializeJson(doc, response);
+  DynamicJsonDocument doc(4096);
+  DeserializationError err = deserializeJson(doc, response);
+  response = "";
 
-  if (error) {
-    Serial.print("Bitrix24: JSON parse error for bizproc.task.list: ");
-    Serial.println(error.c_str());
-    Serial.print("Response length: ");
-    Serial.println(response.length());
-    if (response.length() > 0 && response.length() < 200) {
-      Serial.print("Response preview: ");
-      Serial.println(response.substring(0, min(200, (int)response.length())));
+  if (err || !doc["result"].is<JsonObject>()) {
+    return false;
+  }
+
+  JsonObject result = doc["result"].as<JsonObject>();
+  uint16_t totalUnread = 0;
+
+  // Preferred: TYPE.ALL (total unread messages)
+  if (result["TYPE"].is<JsonObject>()) {
+    JsonObject type = result["TYPE"].as<JsonObject>();
+    if (type["ALL"].is<int>()) {
+      totalUnread = type["ALL"].as<int>();
+    } else if (type["MESSENGER"].is<int>()) {
+      totalUnread = type["MESSENGER"].as<int>();
     }
-    return false;
   }
 
-  // Get total count
-  if (doc["result"]["total"].is<int>()) {
-    *count = doc["result"]["total"].as<int>();
-    return true;
-  }
-
-  return false;
-}
-
-// Fetch groups & projects count
-// For now, we'll use sonet_group.get to get total groups/projects
-// You may want to add activity stream notifications later
-bool fetchGroupsProjects(uint16_t* count) {
-  // Limit to first page to reduce response size
-  String response = bitrix24Request("sonet_group.get", "START=0");
-  if (response.length() == 0) {
-    return false;
-  }
-
-  // Increase buffer size for larger responses
-  DynamicJsonDocument doc(12288); // 12KB buffer
-  DeserializationError error = deserializeJson(doc, response);
-
-  if (error) {
-    Serial.print("Bitrix24: JSON parse error for sonet_group.get: ");
-    Serial.println(error.c_str());
-    Serial.print("Response length: ");
-    Serial.println(response.length());
-    if (response.length() > 0 && response.length() < 200) {
-      Serial.print("Response preview: ");
-      Serial.println(response.substring(0, min(200, (int)response.length())));
-    }
-    return false;
-  }
-
-  // Get total count of groups/projects
-  if (doc["result"]["total"].is<int>()) {
-    *count = doc["result"]["total"].as<int>();
-    return true;
-  }
-
-  return false;
+  *count = totalUnread;
+  return true;
 }
 
 // Fetch all notification counts from Bitrix24
 bool fetchBitrix24Counts(Bitrix24Counts* counts) {
-  if (counts == nullptr) {
-    return false;
-  }
+  if (!counts) return false;
 
   bool success = true;
   uint16_t unread = 0;
+  uint16_t totalUnread = 0;
   uint16_t undone = 0;
   uint16_t groups = 0;
 
-  // Fetch unread messages
+  // Fetch unread messages in dialogs
   if (!fetchUnreadMessages(&unread)) {
-    Serial.println("Bitrix24: Failed to fetch unread messages");
     success = false;
-  } else {
-    Serial.print("Bitrix24: Successfully fetched unread messages: ");
-    Serial.println(unread);
   }
 
-  // TODO: Re-enable when ready
-  // Fetch undone tasks - DISABLED for now
-  // if (!fetchUndoneTasks(&undone)) {
-  //   Serial.println("Bitrix24: Failed to fetch undone tasks");
-  //   success = false;
-  // }
-  undone = 0; // Placeholder
+  // Fetch total unread messages (all types)
+  fetchTotalUnreadMessages(&totalUnread);
 
-  // TODO: Re-enable when ready
-  // Fetch groups/projects - DISABLED for now
-  // if (!fetchGroupsProjects(&groups)) {
-  //   Serial.println("Bitrix24: Failed to fetch groups/projects");
-  //   success = false;
-  // }
-  groups = 0; // Placeholder
+  // Tasks & groups are disabled for now
+  undone = 0;
+  groups = 0;
 
-  // Update counts
   counts->unreadMessages = unread;
+  counts->totalUnreadMessages = totalUnread;
   counts->undoneTasks = undone;
   counts->groupsProjects = groups;
   counts->valid = success;
   counts->lastUpdate = millis();
 
-  // Update cache
   cachedCounts = *counts;
 
-  Serial.print("Bitrix24: Counts - Messages: ");
+  Serial.print("Bitrix24: Dialogs: ");
   Serial.print(unread);
-  Serial.print(", Tasks: ");
-  Serial.print(undone);
-  Serial.print(", Groups: ");
-  Serial.println(groups);
+  Serial.print(", Total: ");
+  Serial.println(totalUnread);
 
   return success;
 }
@@ -221,14 +194,15 @@ Bitrix24Counts getBitrix24Counts() {
 // Check if update is needed
 bool shouldUpdateBitrix24() {
   if (!cachedCounts.valid) {
-    return true; // Always update if no valid data
+    return true;
   }
 
   unsigned long now = millis();
-  // Handle millis() overflow
   if (now < cachedCounts.lastUpdate) {
-    return true; // Overflow occurred, update
+    // millis() overflow, force refresh
+    return true;
   }
 
   return (now - cachedCounts.lastUpdate) >= bitrix24UpdateInterval;
 }
+
