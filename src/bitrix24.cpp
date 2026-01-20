@@ -221,15 +221,21 @@ static bool fetchGroupDelayedAndComments(uint32_t groupId, uint16_t* delayed, ui
   *comments = 0;
   if (groupId == 0) return false;
 
+  // Ensure we know current user; we'll count only tasks where this user is RESPONSIBLE ("Делаю")
+  if (!fetchCurrentUserId()) {
+    return false;
+  }
+
   String today;
   if (!fetchBitrixTodayDate(&today)) {
     return false;
   }
 
-  // Delayed tasks in group: past deadline, not completed
+  // Delayed tasks in group: past deadline, RESPONSIBLE_ID = current user, not completed
   String delayedParams = "filter[GROUP_ID]=" + String(groupId)
                        + "&filter[!DEADLINE]="
                        + "&filter[<DEADLINE]=" + today
+                       + "&filter[RESPONSIBLE_ID]=" + String(bitrixCurrentUserId)
                        + "&filter[!STATUS]=5"
                        + "&nav_params[nPageSize]=1"
                        + "&nav_params[iNumPage]=1"
@@ -238,19 +244,72 @@ static bool fetchGroupDelayedAndComments(uint32_t groupId, uint16_t* delayed, ui
   String resp1 = bitrix24Request("tasks.task.list", delayedParams.c_str());
   if (resp1.length() > 0) {
     *delayed = parseTotalFromJson(resp1);
+    // Compact debug: just show filters and total
+    Serial.println("Bitrix24 GroupStats Delayed: tasks.task.list params:");
+    Serial.println(delayedParams);
   }
 
-  // Comments in group: best-effort filter for tasks with new comments.
-  // If this returns 0 but UI shows non-zero, we'll adjust filter keys after you share API output.
+  // "All tasks" in group: tasks where current user is RESPONSIBLE ("Делаю")
+  // and status is one of: new (1), waiting (2), in progress (3), waiting for control (4), postponed (6).
+  // This includes delayed tasks (past deadline) as long as they have these statuses.
+  // We explicitly don't filter by deadline to include all active tasks.
   String commentsParams = "filter[GROUP_ID]=" + String(groupId)
-                        + "&filter[NEW_COMMENTS]=Y"
+                        + "&filter[RESPONSIBLE_ID]=" + String(bitrixCurrentUserId)
+                        + "&filter[STATUS][]=1"
+                        + "&filter[STATUS][]=2"
+                        + "&filter[STATUS][]=3"
+                        + "&filter[STATUS][]=4"
+                        + "&filter[STATUS][]=6"
                         + "&nav_params[nPageSize]=1"
                         + "&nav_params[iNumPage]=1"
                         + "&select[]=ID";
 
   String resp2 = bitrix24Request("tasks.task.list", commentsParams.c_str());
   if (resp2.length() > 0) {
+    // Base count: all active tasks for this group & responsible user
     *comments = parseTotalFromJson(resp2);
+
+    // The user expects "All your tasks" to be:
+    //   non-delayed active tasks + delayed tasks
+    // even if Bitrix doesn't include the delayed ones in the same filter.
+    // Therefore we explicitly add the delayed count on top.
+    if (*delayed > 0) {
+      *comments = (uint16_t)(*comments + *delayed);
+    }
+
+    // Debug: show filters + list of IDs only (more readable)
+    Serial.println("Bitrix24 GroupStats AllTasks: tasks.task.list params:");
+    Serial.println(commentsParams);
+
+    DynamicJsonDocument doc2(16384);
+    DeserializationError err2 = deserializeJson(doc2, resp2);
+    resp2 = "";
+    if (!err2) {
+      JsonArray tasks;
+      if (doc2["result"].is<JsonArray>()) {
+        tasks = doc2["result"].as<JsonArray>();
+      } else if (doc2["result"].is<JsonObject>() && doc2["result"]["tasks"].is<JsonArray>()) {
+        tasks = doc2["result"]["tasks"].as<JsonArray>();
+      }
+      if (!tasks.isNull()) {
+        Serial.print("  AllTasks IDs (first 50): ");
+        uint8_t printed = 0;
+        for (JsonObject t : tasks) {
+          if (printed > 0) Serial.print(", ");
+          if (t["ID"].is<const char*>()) Serial.print(t["ID"].as<const char*>());
+          else if (t["id"].is<const char*>()) Serial.print(t["id"].as<const char*>());
+          else if (t["ID"].is<int>()) Serial.print(t["ID"].as<int>());
+          else if (t["id"].is<int>()) Serial.print(t["id"].as<int>());
+          else Serial.print("?");
+          printed++;
+          if (printed >= 50) break;
+        }
+        Serial.println();
+      }
+    } else {
+      Serial.print("Bitrix24 GroupStats AllTasks parse error: ");
+      Serial.println(err2.c_str());
+    }
   }
 
   return true;
@@ -658,7 +717,7 @@ bool fetchBitrix24Counts(Bitrix24Counts* counts) {
   Serial.print(comments);
   Serial.print(", GroupDelayed: ");
   Serial.print(groupDelayed);
-  Serial.print(", GroupComments: ");
+  Serial.print(", All_your_group_tasks: ");
   Serial.println(groupComments);
 
   return success;

@@ -78,7 +78,7 @@ static void telegramB24SetSingleGroup(const String& numericText) {
   msg += "\nDelayed tasks: <b>";
   msg += String(delayed);
   msg += "</b>";
-  msg += "\nUnread comments: <b>";
+  msg += "\nAll your tasks: <b>";
   msg += String(comments);
   msg += "</b>";
   msg += "\n\nReply <b>ALL</b> to switch back to <b>ALL delayed-by-me</b> mode.\n";

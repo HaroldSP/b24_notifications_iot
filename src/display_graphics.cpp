@@ -989,14 +989,10 @@ void drawB24Placeholder() {
       gfx->print(numberText);
     } else if (totalComments > 0) {
       // Special case:
-      // - For selected group: "Comments - [NUMBER]"
+      // - For selected group: "All tasks: [NUMBER]"
       // - Otherwise: "All tasks: [NUMBER]"
       char subtitleText[32];
-      if (label1 && strcmp(label1, "Selected group") == 0) {
-        snprintf(subtitleText, sizeof(subtitleText), "Comments - ");
-      } else {
-        snprintf(subtitleText, sizeof(subtitleText), "All tasks: ");
-      }
+      snprintf(subtitleText, sizeof(subtitleText), "All tasks: ");
       
       // Draw prefix in gray - use same vertical centering as drawCenteredText
       int16_t x1, y1;

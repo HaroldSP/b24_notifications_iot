@@ -34,7 +34,7 @@ uint32_t getBitrixSelectedGroupId();
 // Optional helpers for selected group (used for Telegram messages)
 // - Get group name by ID (may return empty string if not available)
 String bitrixGetGroupName(uint32_t groupId);
-// - Get delayed tasks and unread comments for a group (lightweight, count-only)
+// - Get delayed tasks and total count for a group (lightweight, count-only)
 bool bitrixGetGroupStats(uint32_t groupId, uint16_t* delayed, uint16_t* comments);
 
 // Check if update is needed (based on update interval)
