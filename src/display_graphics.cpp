@@ -988,11 +988,17 @@ void drawB24Placeholder() {
       gfx->setTextColor(COLOR_RED);
       gfx->print(numberText);
     } else if (totalComments > 0) {
-      // Special case: show "All tasks: [NUMBER]" with number in red
+      // Special case:
+      // - For selected group: "Comments - [NUMBER]"
+      // - Otherwise: "All tasks: [NUMBER]"
       char subtitleText[32];
-      snprintf(subtitleText, sizeof(subtitleText), "All tasks: ");
+      if (label1 && strcmp(label1, "Selected group") == 0) {
+        snprintf(subtitleText, sizeof(subtitleText), "Comments - ");
+      } else {
+        snprintf(subtitleText, sizeof(subtitleText), "All tasks: ");
+      }
       
-      // Draw "All tasks: " in gray - use same vertical centering as drawCenteredText
+      // Draw prefix in gray - use same vertical centering as drawCenteredText
       int16_t x1, y1;
       uint16_t textW, textH;
       gfx->setFont(nullptr);
@@ -1029,16 +1035,20 @@ void drawB24Placeholder() {
   char msgCount[16];
   char taskCount[16];
   char expiredCount[16];
+  char thirdCount[16];
   
   if (counts.valid) {
     snprintf(msgCount, sizeof(msgCount), "%u", counts.unreadMessages);
     snprintf(taskCount, sizeof(taskCount), "%u", counts.undoneTasks);
     snprintf(expiredCount, sizeof(expiredCount), "%u", counts.expiredTasks);
+    snprintf(thirdCount, sizeof(thirdCount), "%u",
+             (getBitrixSelectedGroupId() != 0) ? counts.groupDelayedTasks : counts.expiredTasks);
   } else {
     // Use "0" if data not available yet
     strcpy(msgCount, "0");
     strcpy(taskCount, "0");
     strcpy(expiredCount, "0");
+    strcpy(thirdCount, "0");
   }
   
   if (isLandscape) {
@@ -1054,9 +1064,13 @@ void drawB24Placeholder() {
     drawSection(sectionWidth, contentStartY, sectionWidth, sectionHeight,
                 "Undone Tasks", "Auto & BP", taskCount);
     
-    // Section 3: Expired Tasks (show total comments in subtitle with red number)
+    // Section 3: Selected group or Expired Tasks (subtitle shows comments)
     drawSection(sectionWidth * 2, contentStartY, sectionWidth, sectionHeight,
-                "Expired Tasks", "", expiredCount, 0, counts.totalComments);
+                (getBitrixSelectedGroupId() != 0) ? "Selected group" : "Expired Tasks",
+                (getBitrixSelectedGroupId() != 0) ? "(Delayed)" : "",
+                thirdCount,
+                0,
+                (getBitrixSelectedGroupId() != 0) ? counts.groupComments : counts.totalComments);
     
     // Draw vertical dividers
     gfx->drawFastVLine(sectionWidth, contentStartY, sectionHeight, COLOR_GRAY);
@@ -1074,12 +1088,58 @@ void drawB24Placeholder() {
     drawSection(0, contentStartY + sectionHeight, sectionWidth, sectionHeight,
                 "Undone Tasks", "Auto & BP", taskCount);
     
-    // Section 3: Expired Tasks (show total comments in subtitle with red number)
+    // Section 3: Selected group or Expired Tasks (subtitle shows comments)
     drawSection(0, contentStartY + sectionHeight * 2, sectionWidth, sectionHeight,
-                "Expired Tasks", "", expiredCount, 0, counts.totalComments);
+                (getBitrixSelectedGroupId() != 0) ? "Selected group" : "Expired Tasks",
+                (getBitrixSelectedGroupId() != 0) ? "(Delayed)" : "",
+                thirdCount,
+                0,
+                (getBitrixSelectedGroupId() != 0) ? counts.groupComments : counts.totalComments);
     
     // Draw horizontal dividers
     gfx->drawFastHLine(0, contentStartY + sectionHeight, screenWidth, COLOR_GRAY);
     gfx->drawFastHLine(0, contentStartY + sectionHeight * 2, screenWidth, COLOR_GRAY);
   }
+}
+
+// Temporary screen: "Open TG bot" + Telegram icon in a circle (shown for ~2 seconds)
+void drawTelegramPrompt() {
+  gfx->fillScreen(COLOR_BLACK);
+
+  int16_t w = gfx->width();
+  int16_t h = gfx->height();
+
+  // Title near the top
+  drawCenteredText("Open TG bot", w / 2, 40, COLOR_WHITE, 2);
+
+  // Icon circle in the middle
+  int16_t cx = w / 2;
+  int16_t cy = h / 2 + 10;
+  int16_t r = (min(w, h) / 2) - 40;
+  if (r < 35) r = 35;
+  if (r > 70) r = 70;
+
+  // Telegram-ish blue
+  uint16_t tgBlue = 0x2D7F; // close to #229ED9 in RGB565
+  gfx->fillCircle(cx, cy, r, tgBlue);
+  gfx->drawCircle(cx, cy, r, COLOR_WHITE);
+
+  // Simple paper-plane glyph (white)
+  // Outer triangle (plane body)
+  int16_t p1x = cx - r / 3;
+  int16_t p1y = cy + r / 4;
+  int16_t p2x = cx + r / 2;
+  int16_t p2y = cy;
+  int16_t p3x = cx - r / 4;
+  int16_t p3y = cy - r / 3;
+  gfx->fillTriangle(p1x, p1y, p2x, p2y, p3x, p3y, COLOR_WHITE);
+
+  // Cut-out to suggest wing
+  int16_t c1x = cx - r / 8;
+  int16_t c1y = cy + r / 6;
+  int16_t c2x = cx + r / 10;
+  int16_t c2y = cy + r / 20;
+  int16_t c3x = cx - r / 10;
+  int16_t c3y = cy;
+  gfx->fillTriangle(c1x, c1y, c2x, c2y, c3x, c3y, tgBlue);
 }

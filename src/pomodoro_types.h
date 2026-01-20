@@ -25,5 +25,6 @@ enum PomodoroMode {
 #define VIEW_MODE_PREVIEW 2
 #define VIEW_MODE_MAIN_MENU 3
 #define VIEW_MODE_B24 4
+#define VIEW_MODE_TG_PROMPT 5
 
 #endif // POMODORO_TYPES_H

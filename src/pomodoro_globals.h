@@ -99,4 +99,7 @@ extern unsigned long tapIndicatorStart;
 extern int16_t tapIndicatorX;
 extern int16_t tapIndicatorY;
 
+// Temporary Telegram prompt screen timer (for B24 -> TG prompt UX)
+extern unsigned long tgPromptUntilMs;
+
 #endif // POMODORO_GLOBALS_H

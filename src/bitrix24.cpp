@@ -18,9 +18,12 @@
 unsigned long bitrix24UpdateInterval = 30000;
 
 // Cached counts
-static Bitrix24Counts cachedCounts = {0, 0, 0, 0, 0, false, 0};
+static Bitrix24Counts cachedCounts = {0, 0, 0, 0, 0, 0, 0, false, 0};
 // Previous counts for change detection
-static Bitrix24Counts previousCounts = {0, 0, 0, 0, 0, false, 0};
+static Bitrix24Counts previousCounts = {0, 0, 0, 0, 0, 0, 0, false, 0};
+
+// Selected group id (0 = disabled)
+static uint32_t selectedGroupId = 0;
 
 // Current Bitrix24 user ID (determined at runtime via user.current)
 static uint32_t bitrixCurrentUserId = 0;
@@ -62,6 +65,17 @@ void initBitrix24() {
   cachedCounts.valid = false;
   cachedCounts.lastUpdate = 0;
   bitrixCurrentUserId = 0;
+  selectedGroupId = 0;
+}
+
+void setBitrixSelectedGroupId(uint32_t groupId) {
+  selectedGroupId = groupId;
+  // Force refresh on next loop
+  cachedCounts.valid = false;
+}
+
+uint32_t getBitrixSelectedGroupId() {
+  return selectedGroupId;
 }
 
 // Fetch current Bitrix24 user ID using user.current
@@ -183,6 +197,102 @@ static bool fetchBitrixTodayDate(String *outDate) {
   *outDate = dateOnly;
   return true;
 }
+
+static uint16_t parseTotalFromJson(const String& response) {
+  uint16_t c = 0;
+  int totalPos = response.indexOf("\"total\":");
+  if (totalPos < 0) totalPos = response.indexOf("\"TOTAL\":");
+  if (totalPos >= 0) {
+    int numStart = response.indexOf(':', totalPos);
+    if (numStart >= 0) {
+      numStart++;
+      while (numStart < (int)response.length() && response[numStart] == ' ') numStart++;
+      int numEnd = numStart;
+      while (numEnd < (int)response.length() && response[numEnd] >= '0' && response[numEnd] <= '9') numEnd++;
+      if (numEnd > numStart) c = (uint16_t)response.substring(numStart, numEnd).toInt();
+    }
+  }
+  return c;
+}
+
+static bool fetchGroupDelayedAndComments(uint32_t groupId, uint16_t* delayed, uint16_t* comments) {
+  if (!delayed || !comments) return false;
+  *delayed = 0;
+  *comments = 0;
+  if (groupId == 0) return false;
+
+  String today;
+  if (!fetchBitrixTodayDate(&today)) {
+    return false;
+  }
+
+  // Delayed tasks in group: past deadline, not completed
+  String delayedParams = "filter[GROUP_ID]=" + String(groupId)
+                       + "&filter[!DEADLINE]="
+                       + "&filter[<DEADLINE]=" + today
+                       + "&filter[!STATUS]=5"
+                       + "&nav_params[nPageSize]=1"
+                       + "&nav_params[iNumPage]=1"
+                       + "&select[]=ID";
+
+  String resp1 = bitrix24Request("tasks.task.list", delayedParams.c_str());
+  if (resp1.length() > 0) {
+    *delayed = parseTotalFromJson(resp1);
+  }
+
+  // Comments in group: best-effort filter for tasks with new comments.
+  // If this returns 0 but UI shows non-zero, we'll adjust filter keys after you share API output.
+  String commentsParams = "filter[GROUP_ID]=" + String(groupId)
+                        + "&filter[NEW_COMMENTS]=Y"
+                        + "&nav_params[nPageSize]=1"
+                        + "&nav_params[iNumPage]=1"
+                        + "&select[]=ID";
+
+  String resp2 = bitrix24Request("tasks.task.list", commentsParams.c_str());
+  if (resp2.length() > 0) {
+    *comments = parseTotalFromJson(resp2);
+  }
+
+  return true;
+}
+
+// Public wrapper used by Telegram code to get group stats on demand
+bool bitrixGetGroupStats(uint32_t groupId, uint16_t* delayed, uint16_t* comments) {
+  return fetchGroupDelayedAndComments(groupId, delayed, comments);
+}
+
+// Best-effort helper: get group/workgroup name by ID using sonet_group.get
+String bitrixGetGroupName(uint32_t groupId) {
+  if (groupId == 0) return "";
+
+  // Use FILTER[ID] according to sonet_group.get docs
+  String params = "FILTER[ID]=" + String(groupId);
+  String resp = bitrix24Request("sonet_group.get", params.c_str());
+  if (resp.length() == 0) return "";
+
+  DynamicJsonDocument doc(4096);
+  DeserializationError err = deserializeJson(doc, resp);
+  resp = "";
+  if (err) return "";
+
+  // result can be object or array[0]
+  if (doc["result"].is<JsonObject>()) {
+    JsonObject g = doc["result"].as<JsonObject>();
+    if (g["NAME"].is<const char*>()) return String(g["NAME"].as<const char*>());
+    if (g["name"].is<const char*>()) return String(g["name"].as<const char*>());
+  }
+  if (doc["result"].is<JsonArray>()) {
+    JsonArray arr = doc["result"].as<JsonArray>();
+    if (arr.size() > 0 && arr[0].is<JsonObject>()) {
+      JsonObject g = arr[0].as<JsonObject>();
+      if (g["NAME"].is<const char*>()) return String(g["NAME"].as<const char*>());
+      if (g["name"].is<const char*>()) return String(g["name"].as<const char*>());
+    }
+  }
+  return "";
+}
+
+// (Name-based helpers removed; we use IDs only)
 
 // Fetch unread dialogs count
 // Strategy: Use im.counters.get → TYPE.DIALOG (number of dialogs with unread messages)
@@ -494,6 +604,8 @@ bool fetchBitrix24Counts(Bitrix24Counts* counts) {
   uint16_t undone = 0;
   uint16_t expired = 0;
   uint16_t comments = 0;
+  uint16_t groupDelayed = 0;
+  uint16_t groupComments = 0;
 
   // Fetch unread messages in dialogs
   if (!fetchUnreadMessages(&unread)) {
@@ -512,11 +624,18 @@ bool fetchBitrix24Counts(Bitrix24Counts* counts) {
   // Use total unread messages (ALL/CHAT/MESSENGER) as total comments count
   comments = totalUnread;
 
+  // Selected group mode (single group)
+  if (selectedGroupId != 0) {
+    fetchGroupDelayedAndComments(selectedGroupId, &groupDelayed, &groupComments);
+  }
+
   counts->unreadMessages = unread;
   counts->totalUnreadMessages = totalUnread;
   counts->undoneTasks = undone;
   counts->expiredTasks = expired;
   counts->totalComments = comments;
+  counts->groupDelayedTasks = groupDelayed;
+  counts->groupComments = groupComments;
   counts->valid = success;
   counts->lastUpdate = millis();
 
@@ -536,7 +655,11 @@ bool fetchBitrix24Counts(Bitrix24Counts* counts) {
   Serial.print(", Expired: ");
   Serial.print(expired);
   Serial.print(", Comments: ");
-  Serial.println(comments);
+  Serial.print(comments);
+  Serial.print(", GroupDelayed: ");
+  Serial.print(groupDelayed);
+  Serial.print(", GroupComments: ");
+  Serial.println(groupComments);
 
   return success;
 }

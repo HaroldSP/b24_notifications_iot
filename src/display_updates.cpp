@@ -10,6 +10,16 @@
 #include <math.h>
 
 void updateDisplay() {
+  // Temporary TG prompt screen: auto-return after timeout
+  if (currentViewMode == VIEW_MODE_TG_PROMPT) {
+    if (tgPromptUntilMs != 0 && millis() > tgPromptUntilMs) {
+      tgPromptUntilMs = 0;
+      currentViewMode = VIEW_MODE_B24;
+      drawB24Placeholder();
+    }
+    return;
+  }
+
   if (currentState == STOPPED) {
     // Check view mode: 0 = home, 1 = grid/palette, 2 = color preview, 3 = main menu, 4 = B24
     if (currentViewMode == VIEW_MODE_HOME && !gridViewActive) {

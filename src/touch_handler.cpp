@@ -8,6 +8,8 @@
 #include "timer_logic.h"
 #include "storage.h"
 #include "color_utils.h"
+#include "wifi_telegram.h"
+#include "bitrix24.h"
 #include <Wire.h>
 #include <string.h>
 
@@ -453,10 +455,56 @@ void handleTouchInput() {
         currentViewMode = VIEW_MODE_MAIN_MENU;
         drawMainFunctionality();
       } else if (currentViewMode == VIEW_MODE_B24 && lastTouchValid && tx >= 0 && ty >= 0) {
-        // Tap anywhere on B24 screen - return to main menu
-        Serial.println("*** B24 SCREEN TAPPED - RETURNING TO MAIN MENU ***");
-        currentViewMode = VIEW_MODE_MAIN_MENU;
-        drawMainFunctionality();
+        // On B24 screen:
+        // - Tap 3rd section -> show "Open TG bot" screen for 2 seconds + send TG prompt
+        // - Tap elsewhere -> return to main menu
+        const int16_t headerHeight = 30;
+        int16_t screenWidth = gfx->width();
+        int16_t screenHeight = gfx->height();
+        bool isLandscape = (currentRotation == 1 || currentRotation == 3);
+        int16_t contentStartY = headerHeight;
+        int16_t contentHeight = screenHeight - headerHeight;
+
+        bool inThirdSection = false;
+        if (isLandscape) {
+          int16_t sectionWidth = screenWidth / 3;
+          int16_t sectionHeight = contentHeight;
+          int16_t x0 = sectionWidth * 2;
+          int16_t y0 = contentStartY;
+          inThirdSection = (tx >= x0 && tx < x0 + sectionWidth && ty >= y0 && ty < y0 + sectionHeight);
+        } else {
+          int16_t sectionWidth = screenWidth;
+          int16_t sectionHeight = contentHeight / 3;
+          int16_t x0 = 0;
+          int16_t y0 = contentStartY + sectionHeight * 2;
+          inThirdSection = (tx >= x0 && tx < x0 + sectionWidth && ty >= y0 && ty < y0 + sectionHeight);
+        }
+
+        if (inThirdSection) {
+          Serial.println("*** B24 3RD SECTION TAPPED - OPEN TG PROMPT ***");
+          // Show temporary screen for ~2 seconds
+          currentViewMode = VIEW_MODE_TG_PROMPT;
+          tgPromptUntilMs = millis() + 2000UL;
+          drawTelegramPrompt();
+
+          // Kick off TG configuration flow
+          if (getBitrixSelectedGroupId() == 0) {
+            sendTelegramMessage(
+              "To choose a group/project for the counter, send its ID.\n"
+              "Example: 253"
+            );
+          } else {
+            String msg = "Selected group: ";
+            msg += String(getBitrixSelectedGroupId());
+            msg += "\nReply <b>all</b> to switch back to all delayed by me mode.\n";
+            msg += "Or send another group ID.";
+            sendTelegramMessage(msg);
+          }
+        } else {
+          Serial.println("*** B24 SCREEN TAPPED - RETURNING TO MAIN MENU ***");
+          currentViewMode = VIEW_MODE_MAIN_MENU;
+          drawMainFunctionality();
+        }
       } else if (inMainMenuB24Btn) {
         // B24 button clicked - open B24 placeholder screen
         Serial.println("*** MAIN MENU B24 BUTTON CLICKED ***");

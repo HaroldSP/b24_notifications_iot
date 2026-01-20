@@ -99,3 +99,6 @@ bool tapIndicatorActive = false;
 unsigned long tapIndicatorStart = 0;
 int16_t tapIndicatorX = 0;
 int16_t tapIndicatorY = 0;
+
+// Temporary Telegram prompt screen timer (for B24 -> TG prompt UX)
+unsigned long tgPromptUntilMs = 0;
