@@ -215,6 +215,65 @@ static uint16_t parseTotalFromJson(const String& response) {
   return c;
 }
 
+// Fetch global "All your tasks" count (no specific group):
+// - For current user as RESPONSIBLE ("Делаю")
+// - "All your tasks" = active tasks (statuses 1,2,3,4,6) + delayed tasks
+static bool fetchGlobalAllTasks(uint16_t* allTasks) {
+  if (!allTasks) return false;
+  *allTasks = 0;
+
+  // Ensure current user ID
+  if (!fetchCurrentUserId()) {
+    return false;
+  }
+
+  // Get today's date for delayed filter
+  String today;
+  if (!fetchBitrixTodayDate(&today)) {
+    return false;
+  }
+
+  // Delayed tasks: past deadline, responsible = current user, not completed
+  uint16_t delayed = 0;
+  {
+    String delayedParams = "filter[!DEADLINE]="
+                         + String("&filter[<DEADLINE]=") + today
+                         + "&filter[RESPONSIBLE_ID]=" + String(bitrixCurrentUserId)
+                         + "&filter[!STATUS]=5"
+                         + "&nav_params[nPageSize]=1"
+                         + "&nav_params[iNumPage]=1"
+                         + "&select[]=ID";
+
+    String resp = bitrix24Request("tasks.task.list", delayedParams.c_str());
+    if (resp.length() > 0) {
+      delayed = parseTotalFromJson(resp);
+    }
+  }
+
+  // Active (non-delayed) tasks for this user, any group:
+  // statuses: 1 (new), 2 (waiting), 3 (in progress), 4 (waiting for control), 6 (postponed)
+  uint16_t active = 0;
+  {
+    String activeParams = "filter[RESPONSIBLE_ID]=" + String(bitrixCurrentUserId)
+                        + "&filter[STATUS][]=1"
+                        + "&filter[STATUS][]=2"
+                        + "&filter[STATUS][]=3"
+                        + "&filter[STATUS][]=4"
+                        + "&filter[STATUS][]=6"
+                        + "&nav_params[nPageSize]=1"
+                        + "&nav_params[iNumPage]=1"
+                        + "&select[]=ID";
+
+    String resp = bitrix24Request("tasks.task.list", activeParams.c_str());
+    if (resp.length() > 0) {
+      active = parseTotalFromJson(resp);
+    }
+  }
+
+  *allTasks = (uint16_t)(active + delayed);
+  return true;
+}
+
 static bool fetchGroupDelayedAndComments(uint32_t groupId, uint16_t* delayed, uint16_t* comments) {
   if (!delayed || !comments) return false;
   *delayed = 0;
@@ -680,12 +739,20 @@ bool fetchBitrix24Counts(Bitrix24Counts* counts) {
   // Fetch expired (late) tasks/projects (count-only, low-memory)
   fetchExpiredTasks(&expired);
 
-  // Use total unread messages (ALL/CHAT/MESSENGER) as total comments count
-  comments = totalUnread;
-
-  // Selected group mode (single group)
+  // Third section logic:
+  // - If a specific group is selected: use per-group stats (delayed + all your tasks)
+  // - If no group is selected: show global "All your tasks" (across all groups)
   if (selectedGroupId != 0) {
+    // Group mode
     fetchGroupDelayedAndComments(selectedGroupId, &groupDelayed, &groupComments);
+    // Keep comments as total unread messages for backwards compatibility (not shown in UI in group mode)
+    comments = totalUnread;
+  } else {
+    // Global mode: "All tasks" subtitle should show all active + delayed tasks for current user
+    if (!fetchGlobalAllTasks(&comments)) {
+      // Fallback: at least don't break, keep previous behavior based on unread messages
+      comments = totalUnread;
+    }
   }
 
   counts->unreadMessages = unread;
