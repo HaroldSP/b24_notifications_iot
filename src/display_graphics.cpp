@@ -744,16 +744,16 @@ void drawMainFunctionality() {
   int16_t centerY = screenHeight / 2;
   
   uint16_t btnColor = selectedWorkColor; // Use selected work color for buttons
-  int16_t btnSize = 60; // Button icon size
-  int16_t btnPadding = 10; // Padding around button for touch area
-  int16_t btnSpacing = 30; // Space between buttons
+  int16_t btnSize = 50; // Button icon size (reduced from 60 to fit 4 buttons)
+  int16_t btnPadding = 8; // Padding around button for touch area
+  int16_t btnSpacing = 15; // Space between buttons (reduced from 30)
   
   if (isLandscape) {
-    // Landscape: buttons arranged horizontally
-    int16_t totalWidth = btnSize * 3 + btnSpacing * 2;
+    // Landscape: buttons arranged horizontally (4 buttons)
+    int16_t totalWidth = btnSize * 4 + btnSpacing * 3;
     int16_t startX = centerX - totalWidth / 2;
     
-    // B24 button (left)
+    // B24 button (1st)
     int16_t b24X = startX + btnSize / 2;
     int16_t b24Y = centerY;
     mainMenuB24BtnLeft = b24X - btnSize/2 - btnPadding;
@@ -764,10 +764,10 @@ void drawMainFunctionality() {
                   mainMenuB24BtnRight - mainMenuB24BtnLeft,
                   mainMenuB24BtnBottom - mainMenuB24BtnTop,
                   btnColor);
-    drawCenteredText("B24", b24X, b24Y, btnColor, 3);
+    drawCenteredText("B24", b24X, b24Y, btnColor, 2);
     mainMenuB24BtnValid = true;
     
-    // Tomato button (center)
+    // Tomato button (2nd)
     int16_t tomatoX = startX + btnSize + btnSpacing + btnSize / 2;
     int16_t tomatoY = centerY;
     mainMenuTomatoBtnLeft = tomatoX - btnSize/2 - btnPadding;
@@ -781,7 +781,7 @@ void drawMainFunctionality() {
     drawTomatoIcon(tomatoX, tomatoY, btnSize, btnColor);
     mainMenuTomatoBtnValid = true;
     
-    // Palette button (right)
+    // Palette button (3rd)
     int16_t paletteX = startX + btnSize * 2 + btnSpacing * 2 + btnSize / 2;
     int16_t paletteY = centerY;
     mainMenuPaletteBtnLeft = paletteX - btnSize/2 - btnPadding;
@@ -794,9 +794,26 @@ void drawMainFunctionality() {
                   btnColor);
     drawPaletteIcon(paletteX, paletteY, btnSize, btnColor);
     mainMenuPaletteBtnValid = true;
+    
+    // AP button (4th)
+    int16_t apX = startX + btnSize * 3 + btnSpacing * 3 + btnSize / 2;
+    int16_t apY = centerY;
+    mainMenuAPBtnLeft = apX - btnSize/2 - btnPadding;
+    mainMenuAPBtnRight = apX + btnSize/2 + btnPadding;
+    mainMenuAPBtnTop = apY - btnSize/2 - btnPadding;
+    mainMenuAPBtnBottom = apY + btnSize/2 + btnPadding;
+    gfx->drawRect(mainMenuAPBtnLeft, mainMenuAPBtnTop,
+                  mainMenuAPBtnRight - mainMenuAPBtnLeft,
+                  mainMenuAPBtnBottom - mainMenuAPBtnTop,
+                  btnColor);
+    // Draw "AP: on" or "AP: off" text
+    char apText[16];
+    snprintf(apText, sizeof(apText), "AP: %s", apEnabled ? "on" : "off");
+    drawCenteredText(apText, apX, apY, btnColor, 1);
+    mainMenuAPBtnValid = true;
   } else {
-    // Portrait: buttons arranged vertically
-    int16_t totalHeight = btnSize * 3 + btnSpacing * 2;
+    // Portrait: buttons arranged vertically (4 buttons)
+    int16_t totalHeight = btnSize * 4 + btnSpacing * 3;
     int16_t startY = centerY - totalHeight / 2;
     
     // B24 button (top)
@@ -810,10 +827,10 @@ void drawMainFunctionality() {
                   mainMenuB24BtnRight - mainMenuB24BtnLeft,
                   mainMenuB24BtnBottom - mainMenuB24BtnTop,
                   btnColor);
-    drawCenteredText("B24", b24X, b24Y, btnColor, 3);
+    drawCenteredText("B24", b24X, b24Y, btnColor, 2);
     mainMenuB24BtnValid = true;
     
-    // Tomato button (center)
+    // Tomato button (2nd)
     int16_t tomatoX = centerX;
     int16_t tomatoY = startY + btnSize + btnSpacing + btnSize / 2;
     mainMenuTomatoBtnLeft = tomatoX - btnSize/2 - btnPadding;
@@ -827,7 +844,7 @@ void drawMainFunctionality() {
     drawTomatoIcon(tomatoX, tomatoY, btnSize, btnColor);
     mainMenuTomatoBtnValid = true;
     
-    // Palette button (bottom)
+    // Palette button (3rd)
     int16_t paletteX = centerX;
     int16_t paletteY = startY + btnSize * 2 + btnSpacing * 2 + btnSize / 2;
     mainMenuPaletteBtnLeft = paletteX - btnSize/2 - btnPadding;
@@ -840,6 +857,23 @@ void drawMainFunctionality() {
                   btnColor);
     drawPaletteIcon(paletteX, paletteY, btnSize, btnColor);
     mainMenuPaletteBtnValid = true;
+    
+    // AP button (bottom)
+    int16_t apX = centerX;
+    int16_t apY = startY + btnSize * 3 + btnSpacing * 3 + btnSize / 2;
+    mainMenuAPBtnLeft = apX - btnSize/2 - btnPadding;
+    mainMenuAPBtnRight = apX + btnSize/2 + btnPadding;
+    mainMenuAPBtnTop = apY - btnSize/2 - btnPadding;
+    mainMenuAPBtnBottom = apY + btnSize/2 + btnPadding;
+    gfx->drawRect(mainMenuAPBtnLeft, mainMenuAPBtnTop,
+                  mainMenuAPBtnRight - mainMenuAPBtnLeft,
+                  mainMenuAPBtnBottom - mainMenuAPBtnTop,
+                  btnColor);
+    // Draw "AP: on" or "AP: off" text
+    char apText[16];
+    snprintf(apText, sizeof(apText), "AP: %s", apEnabled ? "on" : "off");
+    drawCenteredText(apText, apX, apY, btnColor, 1);
+    mainMenuAPBtnValid = true;
   }
 }
 

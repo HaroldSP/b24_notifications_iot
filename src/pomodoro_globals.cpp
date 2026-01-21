@@ -88,6 +88,9 @@ int16_t mainMenuTomatoBtnLeft = 0, mainMenuTomatoBtnRight = 0, mainMenuTomatoBtn
 bool mainMenuTomatoBtnValid = false;
 int16_t mainMenuPaletteBtnLeft = 0, mainMenuPaletteBtnRight = 0, mainMenuPaletteBtnTop = 0, mainMenuPaletteBtnBottom = 0;
 bool mainMenuPaletteBtnValid = false;
+int16_t mainMenuAPBtnLeft = 0, mainMenuAPBtnRight = 0, mainMenuAPBtnTop = 0, mainMenuAPBtnBottom = 0;
+bool mainMenuAPBtnValid = false;
+bool apEnabled = false;
 
 // Touch handler variables
 int16_t lastTouchX = 0;

@@ -85,6 +85,9 @@ extern int16_t mainMenuTomatoBtnLeft, mainMenuTomatoBtnRight, mainMenuTomatoBtnT
 extern bool mainMenuTomatoBtnValid;
 extern int16_t mainMenuPaletteBtnLeft, mainMenuPaletteBtnRight, mainMenuPaletteBtnTop, mainMenuPaletteBtnBottom;
 extern bool mainMenuPaletteBtnValid;
+extern int16_t mainMenuAPBtnLeft, mainMenuAPBtnRight, mainMenuAPBtnTop, mainMenuAPBtnBottom;
+extern bool mainMenuAPBtnValid;
+extern bool apEnabled;
 
 // Color palette
 extern const uint16_t paletteColors[];

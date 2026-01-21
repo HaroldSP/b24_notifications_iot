@@ -250,6 +250,7 @@ void handleTouchInput() {
       bool inMainMenuB24Btn = false;
       bool inMainMenuTomatoBtn = false;
       bool inMainMenuPaletteBtn = false;
+      bool inMainMenuAPBtn = false;
       if (currentViewMode == VIEW_MODE_MAIN_MENU && lastTouchValid && tx >= 0 && ty >= 0) {
         if (mainMenuB24BtnValid) {
           if (tx >= mainMenuB24BtnLeft - TOUCH_PADDING && tx <= mainMenuB24BtnRight + TOUCH_PADDING &&
@@ -267,6 +268,12 @@ void handleTouchInput() {
           if (tx >= mainMenuPaletteBtnLeft - TOUCH_PADDING && tx <= mainMenuPaletteBtnRight + TOUCH_PADDING &&
               ty >= mainMenuPaletteBtnTop - TOUCH_PADDING && ty <= mainMenuPaletteBtnBottom + TOUCH_PADDING) {
             inMainMenuPaletteBtn = true;
+          }
+        }
+        if (mainMenuAPBtnValid) {
+          if (tx >= mainMenuAPBtnLeft - TOUCH_PADDING && tx <= mainMenuAPBtnRight + TOUCH_PADDING &&
+              ty >= mainMenuAPBtnTop - TOUCH_PADDING && ty <= mainMenuAPBtnBottom + TOUCH_PADDING) {
+            inMainMenuAPBtn = true;
           }
         }
       }
@@ -528,6 +535,14 @@ void handleTouchInput() {
         tempPreviewRestColor = (selectedRestColor != 0) ? selectedRestColor : 0;  // Initialize preview with current rest color
         currentViewMode = VIEW_MODE_PREVIEW;  // Color preview screen
         drawColorPreview();
+      } else if (inMainMenuAPBtn) {
+        // AP button clicked - toggle AP status
+        Serial.println("*** MAIN MENU AP BUTTON CLICKED ***");
+        apEnabled = !apEnabled;
+        Serial.print("-> AP toggled to: ");
+        Serial.println(apEnabled ? "ON" : "OFF");
+        // Redraw main menu to update AP button text
+        drawMainFunctionality();
       } else if (inGearButton) {
         // Gear button clicked on home screen - show main functionality screen
         Serial.println("*** GEAR BUTTON CLICKED ***");
