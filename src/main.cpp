@@ -9,6 +9,7 @@
 #include <FastIMU.h>
 #include "FreeSansBold24pt7b.h"
 #include "esp_lcd_touch_axs5106l.h"
+#include "esp_log.h"
 
 // Module includes
 #include "pomodoro_types.h"
@@ -23,11 +24,31 @@
 #include "display_updates.h"
 #include "auto_rotation.h"
 #include "bitrix24.h"
+#include "wifi_ap.h"
+
+// Suppress core dump error messages early (before setup runs)
+// This runs during static initialization, before setup()
+__attribute__((constructor))
+void suppress_coredump_errors() {
+  esp_log_level_set("esp_core_dump", ESP_LOG_NONE);
+  esp_log_level_set("esp_core_dump_flash", ESP_LOG_NONE);
+  esp_log_level_set("esp_core_dump_common", ESP_LOG_NONE);
+}
 
 // --- Arduino setup / loop ---
 void setup(void) {
   Serial.begin(115200);
+  
+  // Suppress coredump errors (set before any framework initialization)
+  esp_log_level_set("esp_core_dump", ESP_LOG_NONE);
+  esp_log_level_set("esp_core_dump_flash", ESP_LOG_NONE);
+  esp_log_level_set("esp_core_dump_common", ESP_LOG_NONE);
+  
   Serial.println("Pomodoro Timer (Arduino_GFX) starting...");
+  
+  // NOTE: Changing partition tables wipes all flash data including NVS
+  // This means WiFi credentials, color preferences, etc. will be reset
+  // This is expected ESP32 behavior when modifying partition layout
 
   if (!gfx->begin()) {
     Serial.println("gfx->begin() failed!");
@@ -97,9 +118,12 @@ void loop() {
   updateDisplay();
   checkAutoRotation();  // Check IMU for auto-rotation
   
+  // Handle AP web server requests if AP is active
+  handleAPWebServer();
+  
   // Update Bitrix24 counts periodically (non-blocking)
-  // Only update if enough time has passed to avoid blocking
-  if (shouldUpdateBitrix24()) {
+  // Skip updates when AP is active (WiFi is disconnected)
+  if (!isAPActive() && shouldUpdateBitrix24()) {
     // Don't block - update in background
     Bitrix24Counts counts;
     bool success = fetchBitrix24Counts(&counts);

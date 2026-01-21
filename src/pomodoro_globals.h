@@ -104,5 +104,7 @@ extern int16_t tapIndicatorY;
 
 // Temporary Telegram prompt screen timer (for B24 -> TG prompt UX)
 extern unsigned long tgPromptUntilMs;
+// Temporary AP prompt screen timer (for AP mode activation)
+extern unsigned long apPromptUntilMs;
 
 #endif // POMODORO_GLOBALS_H

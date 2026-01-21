@@ -5,6 +5,8 @@
 #include "display_updates.h"
 #include "timer_logic.h"
 #include "bitrix24.h"
+#include "wifi_ap.h"
+#include "storage.h"
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <UniversalTelegramBot.h>
@@ -18,9 +20,45 @@
 bool wifiConnected = false;
 bool telegramConfigured = false;
 
-// Use build flags for bot token and chat_id
-const char* botToken = TELEGRAM_BOT_TOKEN;
-const char* chatId = TELEGRAM_CHAT_ID;
+// Credentials storage (loaded from NVS or build flags)
+static char wifiSSID[64] = "";
+static char wifiPassword[64] = "";
+static char botToken[128] = "";
+static char chatId[32] = "";
+
+// Initialize credentials from NVS or build flags
+static void initCredentials() {
+  // Try to load WiFi credentials from NVS
+  if (!loadWiFiCredentials(wifiSSID, sizeof(wifiSSID), wifiPassword, sizeof(wifiPassword))) {
+    // Fall back to build flags
+    strncpy(wifiSSID, WIFI_SSID, sizeof(wifiSSID) - 1);
+    strncpy(wifiPassword, WIFI_PASSWORD, sizeof(wifiPassword) - 1);
+  }
+  
+  // Try to load Telegram credentials from NVS
+  if (!loadTelegramCredentials(botToken, sizeof(botToken), chatId, sizeof(chatId))) {
+    // Fall back to build flags
+    strncpy(botToken, TELEGRAM_BOT_TOKEN, sizeof(botToken) - 1);
+    strncpy(chatId, TELEGRAM_CHAT_ID, sizeof(chatId) - 1);
+  }
+}
+
+// Reload credentials from NVS (call after saving via web interface)
+void reloadCredentials() {
+  // Clear existing credentials
+  wifiSSID[0] = '\0';
+  wifiPassword[0] = '\0';
+  botToken[0] = '\0';
+  chatId[0] = '\0';
+  
+  // Reload from NVS
+  initCredentials();
+  
+  // Reinitialize Telegram bot if credentials changed
+  if (wifiConnected && telegramConfigured) {
+    initTelegramBot();
+  }
+}
 
 // --- B24 group/project selection (simple state machine) ---
 enum TelegramB24State : uint8_t {
@@ -116,12 +154,15 @@ SemaphoreHandle_t telegramMutex = nullptr;
 
 // Connect to WiFi
 void connectWiFi() {
+  // Initialize credentials (load from NVS or use build flags)
+  initCredentials();
+  
   Serial.println("Connecting to WiFi...");
   Serial.print("SSID: ");
-  Serial.println(WIFI_SSID);
+  Serial.println(wifiSSID);
   
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.begin(wifiSSID, wifiPassword);
   
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 20) {
@@ -144,6 +185,9 @@ void connectWiFi() {
 
 // Initialize Telegram bot
 void initTelegramBot() {
+  // Ensure credentials are loaded
+  initCredentials();
+  
   // Check if bot token is configured
   telegramConfigured = (strlen(botToken) > 0 && strlen(chatId) > 0);
   
@@ -186,6 +230,12 @@ void telegramTask(void* parameter) {
   Serial.println("[TG TASK] Started");
   
   while (true) {
+    // Skip Telegram operations when AP is active (no internet connection)
+    if (isAPActive()) {
+      vTaskDelay(pdMS_TO_TICKS(1000));  // Wait 1 second before checking again
+      continue;
+    }
+    
     // Send queued messages
     TelegramMsg outMsg;
     if (telegramMsgQueue != nullptr && xQueueReceive(telegramMsgQueue, &outMsg, 0) == pdTRUE) {

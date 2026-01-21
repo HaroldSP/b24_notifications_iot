@@ -105,3 +105,5 @@ int16_t tapIndicatorY = 0;
 
 // Temporary Telegram prompt screen timer (for B24 -> TG prompt UX)
 unsigned long tgPromptUntilMs = 0;
+// Temporary AP prompt screen timer (for AP mode activation)
+unsigned long apPromptUntilMs = 0;

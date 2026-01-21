@@ -19,6 +19,20 @@ void updateDisplay() {
     }
     return;
   }
+  
+  // AP prompt screen: stays visible until long press (no auto-close)
+  if (currentViewMode == VIEW_MODE_AP_PROMPT) {
+    static unsigned long lastViewModeCheck = 0;
+    
+    // Ensure screen is drawn when first entering this mode
+    if (lastViewModeCheck != VIEW_MODE_AP_PROMPT) {
+      drawAPPrompt();
+    }
+    lastViewModeCheck = VIEW_MODE_AP_PROMPT;
+    
+    // Screen stays visible - exit via long press only
+    return;
+  }
 
   if (currentState == STOPPED) {
     // Check view mode: 0 = home, 1 = grid/palette, 2 = color preview, 3 = main menu, 4 = B24

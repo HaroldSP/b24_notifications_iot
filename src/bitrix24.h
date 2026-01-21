@@ -40,6 +40,9 @@ bool bitrixGetGroupStats(uint32_t groupId, uint16_t* delayed, uint16_t* comments
 // Check if update is needed (based on update interval)
 bool shouldUpdateBitrix24();
 
+// Reload Bitrix24 credentials from NVS (call after saving via web interface)
+void reloadBitrix24Credentials();
+
 // Update interval in milliseconds (default: 60000 = 1 minute)
 extern unsigned long bitrix24UpdateInterval;
 

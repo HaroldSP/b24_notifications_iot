@@ -38,5 +38,6 @@ void initTelegramBot();
 void sendTelegramMessage(const String& message);
 void processTelegramCommands();
 void startTelegramTask();
+void reloadCredentials();  // Reload credentials from NVS (call after saving via web interface)
 
 #endif // WIFI_TELEGRAM_H

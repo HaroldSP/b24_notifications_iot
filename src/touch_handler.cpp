@@ -10,6 +10,7 @@
 #include "color_utils.h"
 #include "wifi_telegram.h"
 #include "bitrix24.h"
+#include "wifi_ap.h"
 #include <Wire.h>
 #include <string.h>
 
@@ -191,6 +192,8 @@ void handleTouchInput() {
         tapIndicatorActive = true;
         tapIndicatorStart = millis();
       }
+
+      // AP prompt screen: no special tap handling - long press exits as usual
 
       // Check for grid view buttons (X and ✓) when grid is active
       bool inGridCancelButton = false;
@@ -538,11 +541,21 @@ void handleTouchInput() {
       } else if (inMainMenuAPBtn) {
         // AP button clicked - toggle AP status
         Serial.println("*** MAIN MENU AP BUTTON CLICKED ***");
-        apEnabled = !apEnabled;
-        Serial.print("-> AP toggled to: ");
-        Serial.println(apEnabled ? "ON" : "OFF");
-        // Redraw main menu to update AP button text
-        drawMainFunctionality();
+        
+        // Toggle AP based on current state
+        if (isAPActive()) {
+          stopAPMode();
+          apEnabled = false;
+          Serial.println("-> AP turned OFF");
+          // Redraw main menu to update AP button text (only when turning OFF)
+          drawMainFunctionality();
+        } else {
+          startAPMode();
+          apEnabled = true;
+          Serial.println("-> AP turned ON");
+          // Don't redraw main menu - we're switching to AP prompt screen
+          // The AP prompt screen will be drawn by startAPMode()
+        }
       } else if (inGearButton) {
         // Gear button clicked on home screen - show main functionality screen
         Serial.println("*** GEAR BUTTON CLICKED ***");

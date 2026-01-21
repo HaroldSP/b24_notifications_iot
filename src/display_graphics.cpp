@@ -5,6 +5,7 @@
 #include "pomodoro_config.h"
 #include "color_utils.h"
 #include "bitrix24.h"
+#include "wifi_ap.h"
 #include "FreeSansBold24pt7b.h"
 #include <math.h>
 
@@ -806,9 +807,9 @@ void drawMainFunctionality() {
                   mainMenuAPBtnRight - mainMenuAPBtnLeft,
                   mainMenuAPBtnBottom - mainMenuAPBtnTop,
                   btnColor);
-    // Draw "AP: on" or "AP: off" text
+    // Draw "AP: on" or "AP: off" text (sync with actual AP state)
     char apText[16];
-    snprintf(apText, sizeof(apText), "AP: %s", apEnabled ? "on" : "off");
+    snprintf(apText, sizeof(apText), "AP: %s", isAPActive() ? "on" : "off");
     drawCenteredText(apText, apX, apY, btnColor, 1);
     mainMenuAPBtnValid = true;
   } else {
@@ -869,9 +870,9 @@ void drawMainFunctionality() {
                   mainMenuAPBtnRight - mainMenuAPBtnLeft,
                   mainMenuAPBtnBottom - mainMenuAPBtnTop,
                   btnColor);
-    // Draw "AP: on" or "AP: off" text
+    // Draw "AP: on" or "AP: off" text (sync with actual AP state)
     char apText[16];
-    snprintf(apText, sizeof(apText), "AP: %s", apEnabled ? "on" : "off");
+    snprintf(apText, sizeof(apText), "AP: %s", isAPActive() ? "on" : "off");
     drawCenteredText(apText, apX, apY, btnColor, 1);
     mainMenuAPBtnValid = true;
   }
@@ -1172,4 +1173,69 @@ void drawTelegramPrompt() {
   int16_t c3x = cx - r / 10;
   int16_t c3y = cy;
   gfx->fillTriangle(c1x, c1y, c2x, c2y, c3x, c3y, tgBlue);
+}
+
+// AP prompt screen: shows WiFi connection instructions
+void drawAPPrompt() {
+  gfx->fillScreen(COLOR_BLACK);
+  
+  int16_t w = gfx->width();
+  int16_t h = gfx->height();
+  bool isLandscape = (currentRotation == 1 || currentRotation == 3);
+  
+  // Get AP info
+  const char* apSSID = getAPSSID();
+  const char* apPassword = getAPPassword();
+  String apIP = getAPIPAddress();
+  
+  // Adjust layout based on orientation
+  int16_t titleY, startY, lineHeight, spacing;
+  uint8_t titleSize, textSize;
+  
+  if (isLandscape) {
+    // Landscape: more horizontal space, less vertical - use smaller text and tighter spacing
+    titleY = 15;
+    startY = 40;
+    lineHeight = 16;
+    spacing = 3;
+    titleSize = 1;
+    textSize = 1;
+  } else {
+    // Portrait: more vertical space - use larger text
+    titleY = 25;
+    startY = 60;
+    lineHeight = 20;
+    spacing = 5;
+    titleSize = 2;
+    textSize = 1;
+  }
+  
+  // Title at top
+  drawCenteredText("AP Mode Active", w / 2, titleY, COLOR_WHITE, titleSize);
+  
+  // Instructions in the middle
+  int16_t currentY = startY;
+  
+  // Instruction 1
+  String line1 = "1) Connect to WiFi";
+  drawCenteredText(line1.c_str(), w / 2, currentY, COLOR_WHITE, textSize);
+  currentY += lineHeight;
+  String ssidLine = String(apSSID);
+  drawCenteredText(ssidLine.c_str(), w / 2, currentY, selectedWorkColor, textSize);
+  currentY += lineHeight + spacing;
+  
+  // Instruction 2
+  String line2 = "2) Password is";
+  drawCenteredText(line2.c_str(), w / 2, currentY, COLOR_WHITE, textSize);
+  currentY += lineHeight;
+  String pwdLine = String(apPassword);
+  drawCenteredText(pwdLine.c_str(), w / 2, currentY, selectedWorkColor, textSize);
+  currentY += lineHeight + spacing;
+  
+  // Instruction 3
+  String line3 = "3) Go to AP page";
+  drawCenteredText(line3.c_str(), w / 2, currentY, COLOR_WHITE, textSize);
+  currentY += lineHeight;
+  String ipLine = "http://" + apIP;
+  drawCenteredText(ipLine.c_str(), w / 2, currentY, selectedWorkColor, textSize);
 }

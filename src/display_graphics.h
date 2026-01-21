@@ -13,6 +13,7 @@ void drawColorPreview();
 void drawMainFunctionality();
 void drawB24Placeholder();
 void drawTelegramPrompt();
+void drawAPPrompt();
 void drawCenteredText(const char *txt, int16_t cx, int16_t cy, uint16_t color, uint8_t size);
 void drawPlayIcon(int16_t cx, int16_t cy, int16_t size, uint16_t color);
 void drawPauseIcon(int16_t cx, int16_t cy, int16_t size, uint16_t color);

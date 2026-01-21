@@ -2,6 +2,7 @@
 
 #include "bitrix24.h"
 #include "wifi_telegram.h"
+#include "storage.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
@@ -13,6 +14,23 @@
 #ifndef BITRIX_REST_ENDPOINT
 #define BITRIX_REST_ENDPOINT "/rest/356/qejxunvz8s4bmtb2/"
 #endif
+
+// Credentials storage (loaded from NVS or build flags)
+static char bitrixHostname[128] = "";
+static char bitrixRestEndpoint[128] = "";
+
+// Initialize Bitrix24 credentials from NVS or build flags
+static void initBitrix24Credentials() {
+  if (strlen(bitrixHostname) == 0) {  // Only load once
+    // Try to load from NVS
+    if (!loadBitrix24Credentials(bitrixHostname, sizeof(bitrixHostname), 
+                                 bitrixRestEndpoint, sizeof(bitrixRestEndpoint))) {
+      // Fall back to build flags
+      strncpy(bitrixHostname, BITRIX_HOSTNAME, sizeof(bitrixHostname) - 1);
+      strncpy(bitrixRestEndpoint, BITRIX_REST_ENDPOINT, sizeof(bitrixRestEndpoint) - 1);
+    }
+  }
+}
 
 // Update interval: 30 seconds (30000 ms)
 unsigned long bitrix24UpdateInterval = 30000;
@@ -38,8 +56,11 @@ static String bitrix24Request(const char* method, const char* params = "") {
     return "";
   }
 
+  // Ensure credentials are loaded
+  initBitrix24Credentials();
+
   HTTPClient http;
-  String url = String(BITRIX_HOSTNAME) + String(BITRIX_REST_ENDPOINT) + String(method);
+  String url = String(bitrixHostname) + String(bitrixRestEndpoint) + String(method);
   if (params && strlen(params) > 0) {
     url += "?";
     url += params;
@@ -61,11 +82,31 @@ static String bitrix24Request(const char* method, const char* params = "") {
 
 // Initialize Bitrix24 client
 void initBitrix24() {
+  // Load credentials from NVS or build flags
+  initBitrix24Credentials();
+  
   Serial.println("Bitrix24: Initialized");
+  Serial.print("Hostname: ");
+  Serial.println(bitrixHostname);
+  Serial.print("Endpoint: ");
+  Serial.println(bitrixRestEndpoint);
   cachedCounts.valid = false;
   cachedCounts.lastUpdate = 0;
   bitrixCurrentUserId = 0;
   selectedGroupId = 0;
+}
+
+// Reload Bitrix24 credentials from NVS
+void reloadBitrix24Credentials() {
+  // Clear existing credentials
+  bitrixHostname[0] = '\0';
+  bitrixRestEndpoint[0] = '\0';
+  
+  // Reload from NVS
+  initBitrix24Credentials();
+  
+  // Invalidate cache to force refresh
+  cachedCounts.valid = false;
 }
 
 void setBitrixSelectedGroupId(uint32_t groupId) {
