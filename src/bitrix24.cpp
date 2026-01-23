@@ -735,15 +735,42 @@ static void checkAndNotifyChanges(const Bitrix24Counts& newCounts) {
     sendTelegramMessage(msg);
   }
 
-  if (previousCounts.expiredTasks != newCounts.expiredTasks) {
-    String msg = "⏰ <b>Expired Tasks:</b> ";
-    msg += String(newCounts.expiredTasks);
-    if (newCounts.expiredTasks > previousCounts.expiredTasks) {
-      msg += " ⬆️";
-    } else {
-      msg += " ⬇️";
+  // Check for expired/delayed tasks changes
+  // If a group is selected, check groupDelayedTasks and include group name
+  // Otherwise, check expiredTasks (global)
+  uint32_t currentGroupId = getBitrixSelectedGroupId();
+  if (currentGroupId != 0) {
+    // Group mode: check for changes in groupDelayedTasks
+    if (previousCounts.groupDelayedTasks != newCounts.groupDelayedTasks) {
+      String msg = "⏰ <b>Expired Tasks:</b> ";
+      msg += String(newCounts.groupDelayedTasks);
+      if (newCounts.groupDelayedTasks > previousCounts.groupDelayedTasks) {
+        msg += " ⬆️";
+      } else {
+        msg += " ⬇️";
+      }
+      
+      // Add group name to the message
+      String groupName = bitrixGetGroupName(currentGroupId);
+      if (groupName.length() > 0) {
+        msg += "\n📁 <b>Group:</b> ";
+        msg += groupName;
+      }
+      
+      sendTelegramMessage(msg);
     }
-    sendTelegramMessage(msg);
+  } else {
+    // Global mode: check for changes in expiredTasks (no group info)
+    if (previousCounts.expiredTasks != newCounts.expiredTasks) {
+      String msg = "⏰ <b>Expired Tasks:</b> ";
+      msg += String(newCounts.expiredTasks);
+      if (newCounts.expiredTasks > previousCounts.expiredTasks) {
+        msg += " ⬆️";
+      } else {
+        msg += " ⬇️";
+      }
+      sendTelegramMessage(msg);
+    }
   }
 
   // Update previous counts
