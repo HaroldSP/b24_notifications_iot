@@ -57,6 +57,9 @@ void setup(void) {
   lcd_reg_init();
   gfx->setRotation(ROTATION);
   gfx->fillScreen(COLOR_BLACK);
+  
+  // Enable UTF-8 printing for Cyrillic support
+  gfx->setUTF8Print(true);
 
 #ifdef GFX_BL
   pinMode(GFX_BL, OUTPUT);

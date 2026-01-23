@@ -7,6 +7,7 @@
 #include "bitrix24.h"
 #include "wifi_ap.h"
 #include "FreeSansBold24pt7b.h"
+#include <U8g2lib.h>
 #include <math.h>
 
 // --- Low-level LCD init from Waveshare demo (unchanged) ---
@@ -120,6 +121,42 @@ void drawSplash() {
   int16_t centerY = gfx->height() / 2;
   int16_t radius = 70;
   int16_t borderWidth = 5;
+
+  // Draw welcome text (Cyrillic) using U8g2 font with UTF-8 support
+  // Portrait: two lines "Добро" and "пожаловать!" ABOVE the logo
+  // Landscape: no text (removed)
+  const char* line1 = "Добро";
+  const char* line2 = "пожаловать!";
+  
+  if (!isLandscape) {
+    // Portrait: two lines ABOVE the circle (moved up)
+    // Use U8g2 font with Cyrillic support
+    extern const uint8_t u8g2_font_10x20_t_cyrillic[];
+    gfx->setFont(u8g2_font_10x20_t_cyrillic);
+    gfx->setTextColor(workColor);
+    gfx->setTextSize(1, 1, 0);
+    
+    // Calculate text bounds for both lines
+    int16_t x1, y1;
+    uint16_t w1, h1, w2, h2;
+    gfx->getTextBounds(line1, 0, 0, &x1, &y1, &w1, &h1);
+    gfx->getTextBounds(line2, 0, 0, &x1, &y1, &w2, &h2);
+    
+    int16_t textX1 = centerX - w1 / 2;
+    int16_t textX2 = centerX - w2 / 2;
+    int16_t textY1 = centerY - radius - h1 - 20;  // Moved up from -10 to -20
+    int16_t textY2 = textY1 + h1 + 3;
+    
+    gfx->setCursor(textX1, textY1);
+    gfx->print(line1);
+    gfx->setCursor(textX2, textY2);
+    gfx->print(line2);
+  }
+  
+  // Landscape: no welcome text displayed
+  
+  // Reset to default font
+  gfx->setFont((const GFXfont*)nullptr);
 
   for (int16_t i = 0; i < borderWidth; i++) {
     gfx->drawCircle(centerX, centerY, radius - i, workColor);
@@ -321,7 +358,8 @@ void drawGrid() {
   
   int16_t x1, y1;
   uint16_t w1, h1, w2, h2;
-  gfx->setFont(nullptr);
+  // Use default GFX font (ASCII) for button labels
+  gfx->setFont((const GFXfont*)nullptr);
   uint8_t textSize = 5;  // Try size 5 for bigger buttons (can be 6 if needed)
   gfx->setTextSize(textSize, textSize, 0);
   
@@ -433,7 +471,8 @@ void drawGrid() {
 void drawCenteredText(const char *txt, int16_t cx, int16_t cy, uint16_t color, uint8_t size) {
   int16_t x1, y1;
   uint16_t w, h;
-  gfx->setFont(nullptr);
+  // Use default GFX font (ASCII) for generic centered text
+  gfx->setFont((const GFXfont*)nullptr);
   gfx->setTextSize(size, size, 0);
   gfx->getTextBounds(txt, 0, 0, &x1, &y1, &w, &h);
   int16_t x = cx - (int16_t)w / 2;
@@ -959,7 +998,8 @@ void drawB24Placeholder() {
     // Get text bounds to check if text fits in circle
     int16_t x1, y1;
     uint16_t textW, textH;
-    gfx->setFont(nullptr);
+    // Use default GFX font (ASCII) for numbers inside circles
+    gfx->setFont((const GFXfont*)nullptr);
     gfx->setTextSize(textSize, textSize, 0);
     gfx->getTextBounds(badgeText, 0, 0, &x1, &y1, &textW, &textH);
     
@@ -997,7 +1037,8 @@ void drawB24Placeholder() {
       // Draw "All msgs: " in gray - use same vertical centering as drawCenteredText
       int16_t x1, y1;
       uint16_t textW, textH;
-      gfx->setFont(nullptr);
+      // Use default GFX font (ASCII) for subtitles
+      gfx->setFont((const GFXfont*)nullptr);
       gfx->setTextSize(1, 1, 0);
       gfx->getTextBounds(subtitleText, 0, 0, &x1, &y1, &textW, &textH);
       
@@ -1032,7 +1073,8 @@ void drawB24Placeholder() {
       // Draw prefix in gray - use same vertical centering as drawCenteredText
       int16_t x1, y1;
       uint16_t textW, textH;
-      gfx->setFont(nullptr);
+      // Use default GFX font (ASCII) for subtitles / numbers
+      gfx->setFont((const GFXfont*)nullptr);
       gfx->setTextSize(1, 1, 0);
       gfx->getTextBounds(subtitleText, 0, 0, &x1, &y1, &textW, &textH);
       

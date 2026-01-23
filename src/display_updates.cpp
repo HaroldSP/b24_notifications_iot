@@ -138,7 +138,8 @@ void drawTimer() {
       w = iconSize + 8;
       h = iconSize;
     } else {
-      gfx->setFont(nullptr);
+      // Use default GFX font (ASCII) for status text
+      gfx->setFont((const GFXfont*)nullptr);
       gfx->setTextSize(3, 3, 0);
       gfx->getTextBounds(statusTxt, 0, 0, &x1, &y1, &w, &h);
     }
@@ -189,7 +190,8 @@ void drawTimer() {
     // Single "M" button for mode selection - same size as pause/resume button
     const char *modeTxt = "M";
     
-    gfx->setFont(nullptr);
+    // Use default GFX font (ASCII) for mode button
+    gfx->setFont((const GFXfont*)nullptr);
     gfx->setTextSize(3, 3, 0);  // Same text size as status button
     
     // Use same size as status button (iconSize = 24, padding = 6)
@@ -297,7 +299,8 @@ void drawTimer() {
       w = iconSize + 8;
       h = iconSize;
     } else {
-      gfx->setFont(nullptr);
+      // Use default GFX font (ASCII) for status text bounds
+      gfx->setFont((const GFXfont*)nullptr);
       gfx->setTextSize(3, 3, 0);
       gfx->getTextBounds(statusTxt, 0, 0, &x1, &y1, &w, &h);
     }
@@ -358,7 +361,8 @@ void drawTimer() {
     // Draw "M" button (same as initial draw) - same size as pause/resume button
     const char *modeTxt = "M";
     
-    gfx->setFont(nullptr);
+    // Use default GFX font (ASCII) for mode button
+    gfx->setFont((const GFXfont*)nullptr);
     gfx->setTextSize(3, 3, 0);  // Same text size as status button
     
     // Use same size as status button (iconSize = 24, padding = 6)

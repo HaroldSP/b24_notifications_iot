@@ -30,16 +30,40 @@ static char chatId[32] = "";
 static void initCredentials() {
   // Try to load WiFi credentials from NVS
   if (!loadWiFiCredentials(wifiSSID, sizeof(wifiSSID), wifiPassword, sizeof(wifiPassword))) {
-    // Fall back to build flags
-    strncpy(wifiSSID, WIFI_SSID, sizeof(wifiSSID) - 1);
-    strncpy(wifiPassword, WIFI_PASSWORD, sizeof(wifiPassword) - 1);
+    // Fall back to build flags (with safety checks)
+    const char* ssid = WIFI_SSID;
+    const char* pass = WIFI_PASSWORD;
+    if (ssid && strlen(ssid) > 0) {
+      strncpy(wifiSSID, ssid, sizeof(wifiSSID) - 1);
+      wifiSSID[sizeof(wifiSSID) - 1] = '\0';
+    } else {
+      wifiSSID[0] = '\0';
+    }
+    if (pass && strlen(pass) > 0) {
+      strncpy(wifiPassword, pass, sizeof(wifiPassword) - 1);
+      wifiPassword[sizeof(wifiPassword) - 1] = '\0';
+    } else {
+      wifiPassword[0] = '\0';
+    }
   }
   
   // Try to load Telegram credentials from NVS
   if (!loadTelegramCredentials(botToken, sizeof(botToken), chatId, sizeof(chatId))) {
-    // Fall back to build flags
-    strncpy(botToken, TELEGRAM_BOT_TOKEN, sizeof(botToken) - 1);
-    strncpy(chatId, TELEGRAM_CHAT_ID, sizeof(chatId) - 1);
+    // Fall back to build flags (with safety checks)
+    const char* token = TELEGRAM_BOT_TOKEN;
+    const char* id = TELEGRAM_CHAT_ID;
+    if (token && strlen(token) > 0) {
+      strncpy(botToken, token, sizeof(botToken) - 1);
+      botToken[sizeof(botToken) - 1] = '\0';
+    } else {
+      botToken[0] = '\0';
+    }
+    if (id && strlen(id) > 0) {
+      strncpy(chatId, id, sizeof(chatId) - 1);
+      chatId[sizeof(chatId) - 1] = '\0';
+    } else {
+      chatId[0] = '\0';
+    }
   }
 }
 
@@ -157,6 +181,12 @@ void connectWiFi() {
   // Initialize credentials (load from NVS or use build flags)
   initCredentials();
   
+  // Validate credentials before attempting connection
+  if (strlen(wifiSSID) == 0) {
+    Serial.println("ERROR: WiFi SSID is empty! Cannot connect.");
+    return;
+  }
+  
   Serial.println("Connecting to WiFi...");
   Serial.print("SSID: ");
   Serial.println(wifiSSID);
@@ -183,11 +213,23 @@ void connectWiFi() {
     Serial.println();
     Serial.println("WiFi connection failed, trying build-flag WiFi...");
 
-    // Overwrite runtime credentials with build-flag ones
-    strncpy(wifiSSID, WIFI_SSID, sizeof(wifiSSID) - 1);
-    wifiSSID[sizeof(wifiSSID) - 1] = '\0';
-    strncpy(wifiPassword, WIFI_PASSWORD, sizeof(wifiPassword) - 1);
-    wifiPassword[sizeof(wifiPassword) - 1] = '\0';
+    // Overwrite runtime credentials with build-flag ones (with safety checks)
+    const char* ssid = WIFI_SSID;
+    const char* pass = WIFI_PASSWORD;
+    if (ssid && strlen(ssid) > 0) {
+      strncpy(wifiSSID, ssid, sizeof(wifiSSID) - 1);
+      wifiSSID[sizeof(wifiSSID) - 1] = '\0';
+    } else {
+      Serial.println("ERROR: WIFI_SSID build flag is empty or invalid!");
+      return;  // Can't proceed without valid SSID
+    }
+    if (pass && strlen(pass) > 0) {
+      strncpy(wifiPassword, pass, sizeof(wifiPassword) - 1);
+      wifiPassword[sizeof(wifiPassword) - 1] = '\0';
+    } else {
+      Serial.println("ERROR: WIFI_PASSWORD build flag is empty or invalid!");
+      return;  // Can't proceed without valid password
+    }
 
     Serial.print("Fallback SSID: ");
     Serial.println(wifiSSID);

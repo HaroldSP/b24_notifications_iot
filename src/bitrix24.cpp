@@ -86,10 +86,7 @@ void initBitrix24() {
   initBitrix24Credentials();
   
   Serial.println("Bitrix24: Initialized");
-  Serial.print("Hostname: ");
-  Serial.println(bitrixHostname);
-  Serial.print("Endpoint: ");
-  Serial.println(bitrixRestEndpoint);
+  // Don't log sensitive credentials
   cachedCounts.valid = false;
   cachedCounts.lastUpdate = 0;
   bitrixCurrentUserId = 0;
