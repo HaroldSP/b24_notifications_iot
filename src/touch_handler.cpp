@@ -544,12 +544,15 @@ void handleTouchInput() {
         
         // Toggle AP based on current state
         if (isAPActive()) {
+          // Turn AP OFF and reconnect to normal WiFi
           stopAPMode();
           apEnabled = false;
-          Serial.println("-> AP turned OFF");
+          Serial.println("-> AP turned OFF, reconnecting to WiFi...");
+          connectWiFi();
           // Redraw main menu to update AP button text (only when turning OFF)
           drawMainFunctionality();
         } else {
+          // Turn AP ON
           startAPMode();
           apEnabled = true;
           Serial.println("-> AP turned ON");
@@ -634,6 +637,17 @@ void handleTouchInput() {
       if (currentState == RUNNING || currentState == PAUSED) {
         Serial.println("-> Stopping timer and returning to home");
         stopTimer();
+        currentViewMode = VIEW_MODE_HOME;
+        displayStoppedState();
+      } else if (currentViewMode == VIEW_MODE_AP_PROMPT) {
+        // Long press on AP screen: automatically turn AP OFF and reconnect WiFi, then go home
+        Serial.println("-> Long press on AP screen: stopping AP and returning to home");
+        if (isAPActive()) {
+          stopAPMode();
+          apEnabled = false;
+          Serial.println("-> AP turned OFF from AP screen, reconnecting to WiFi...");
+          connectWiFi();
+        }
         currentViewMode = VIEW_MODE_HOME;
         displayStoppedState();
       } else if (currentViewMode != VIEW_MODE_HOME) {

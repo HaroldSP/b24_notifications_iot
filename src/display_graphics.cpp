@@ -1096,9 +1096,12 @@ void drawB24Placeholder() {
                 "Undone Tasks", "Auto & BP", taskCount);
     
     // Section 3: Selected group or Expired Tasks (subtitle shows comments)
-    drawSection(sectionWidth * 2, contentStartY, sectionWidth, sectionHeight,
+    // Even if there is no data yet, always show a placeholder subtitle
+    // so the user sees at least some text (e.g. "All tasks") instead of an empty line.
+    const char* thirdSubtitle = (getBitrixSelectedGroupId() != 0) ? "(Delayed)" : "All tasks";
+    drawSection(sectionWidth * 2, contentStartY, sectionWidth, sectionHeight, 
                 (getBitrixSelectedGroupId() != 0) ? "Selected group" : "Expired Tasks",
-                (getBitrixSelectedGroupId() != 0) ? "(Delayed)" : "",
+                thirdSubtitle,
                 thirdCount,
                 0,
                 (getBitrixSelectedGroupId() != 0) ? counts.groupComments : counts.totalComments);
@@ -1120,9 +1123,12 @@ void drawB24Placeholder() {
                 "Undone Tasks", "Auto & BP", taskCount);
     
     // Section 3: Selected group or Expired Tasks (subtitle shows comments)
+    // Even if there is no data yet, always show a placeholder subtitle
+    // so the user sees at least some text (e.g. "All tasks") instead of an empty line.
+    const char* thirdSubtitle = (getBitrixSelectedGroupId() != 0) ? "(Delayed)" : "All tasks";
     drawSection(0, contentStartY + sectionHeight * 2, sectionWidth, sectionHeight,
                 (getBitrixSelectedGroupId() != 0) ? "Selected group" : "Expired Tasks",
-                (getBitrixSelectedGroupId() != 0) ? "(Delayed)" : "",
+                thirdSubtitle,
                 thirdCount,
                 0,
                 (getBitrixSelectedGroupId() != 0) ? counts.groupComments : counts.totalComments);

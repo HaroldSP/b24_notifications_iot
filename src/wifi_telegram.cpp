@@ -177,9 +177,46 @@ void connectWiFi() {
     Serial.print("WiFi connected! IP: ");
     Serial.println(WiFi.localIP());
   } else {
+    // First attempt (likely using NVS creds) failed.
+    // Fall back to build-flag WiFi_SSID/WIFI_PASSWORD (home/work WiFi)
     wifiConnected = false;
     Serial.println();
-    Serial.println("WiFi connection failed!");
+    Serial.println("WiFi connection failed, trying build-flag WiFi...");
+
+    // Overwrite runtime credentials with build-flag ones
+    strncpy(wifiSSID, WIFI_SSID, sizeof(wifiSSID) - 1);
+    wifiSSID[sizeof(wifiSSID) - 1] = '\0';
+    strncpy(wifiPassword, WIFI_PASSWORD, sizeof(wifiPassword) - 1);
+    wifiPassword[sizeof(wifiPassword) - 1] = '\0';
+
+    Serial.print("Fallback SSID: ");
+    Serial.println(wifiSSID);
+
+    WiFi.disconnect(true);
+    delay(100);
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(wifiSSID, wifiPassword);
+
+    attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+      delay(500);
+      Serial.print(".");
+      attempts++;
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+      wifiConnected = true;
+      Serial.println();
+      Serial.print("WiFi connected with fallback SSID! IP: ");
+      Serial.println(WiFi.localIP());
+
+      // Save working fallback creds back to NVS so future boots use them
+      saveWiFiCredentials(wifiSSID, wifiPassword);
+    } else {
+      wifiConnected = false;
+      Serial.println();
+      Serial.println("WiFi connection failed even with fallback SSID!");
+    }
   }
 }
 

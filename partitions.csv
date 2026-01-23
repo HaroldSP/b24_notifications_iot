@@ -1,8 +1,0 @@
-# Name,   Type, SubType, Offset,  Size, Flags
-# Custom partition table for ESP32-C6 (4MB flash)
-# Bootloader: ~48KB, Partition table: ~3KB
-# No coredump partition - errors suppressed in code (12KB too small, 64KB recommended but can't fit)
-# Flash size: 4MB = 0x400000, App starts at 0x10000 (must be 64KB aligned)
-nvs,      data, nvs,     0x9000,  0x4000,
-phy_init, data, phy,     0xd000,  0x1000,
-factory,  app,  factory, 0x10000, 0x3F0000,

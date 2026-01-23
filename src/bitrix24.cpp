@@ -807,26 +807,31 @@ bool fetchBitrix24Counts(Bitrix24Counts* counts) {
   counts->lastUpdate = millis();
 
   cachedCounts = *counts;
-
+  
   // Check for changes and send notifications
   if (success) {
     checkAndNotifyChanges(*counts);
   }
-
-  Serial.print("Bitrix24: Dialogs: ");
-  Serial.print(unread);
-  Serial.print(", Total: ");
-  Serial.print(totalUnread);
-  Serial.print(", Tasks: ");
-  Serial.print(undone);
-  Serial.print(", Expired: ");
-  Serial.print(expired);
-  Serial.print(", Comments: ");
-  Serial.print(comments);
-  Serial.print(", GroupDelayed: ");
-  Serial.print(groupDelayed);
-  Serial.print(", All_your_group_tasks: ");
-  Serial.println(groupComments);
+  
+  // Only log detailed stats when WiFi is actually connected.
+  // This prevents serial spam with zero values while WiFi is reconnecting
+  // (for example, right after turning AP off and switching back to STA).
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.print("Bitrix24: Dialogs: ");
+    Serial.print(unread);
+    Serial.print(", Total: ");
+    Serial.print(totalUnread);
+    Serial.print(", Tasks: ");
+    Serial.print(undone);
+    Serial.print(", Expired: ");
+    Serial.print(expired);
+    Serial.print(", Comments: ");
+    Serial.print(comments);
+    Serial.print(", GroupDelayed: ");
+    Serial.print(groupDelayed);
+    Serial.print(", All_your_group_tasks: ");
+    Serial.println(groupComments);
+  }
 
   return success;
 }
