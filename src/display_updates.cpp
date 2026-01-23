@@ -23,10 +23,12 @@ void updateDisplay() {
   // AP prompt screen: stays visible until long press (no auto-close)
   if (currentViewMode == VIEW_MODE_AP_PROMPT) {
     static unsigned long lastViewModeCheck = 0;
+    static uint8_t lastRotation = 255;  // Track rotation changes
     
-    // Ensure screen is drawn when first entering this mode
-    if (lastViewModeCheck != VIEW_MODE_AP_PROMPT) {
+    // Redraw on mode change or rotation change
+    if (lastViewModeCheck != VIEW_MODE_AP_PROMPT || lastRotation != currentRotation) {
       drawAPPrompt();
+      lastRotation = currentRotation;
     }
     lastViewModeCheck = VIEW_MODE_AP_PROMPT;
     
@@ -71,6 +73,11 @@ void updateDisplay() {
 }
 
 void drawTimer() {
+  // Don't draw timer if we're in AP prompt mode (prevent flash on rotation change)
+  if (currentViewMode == VIEW_MODE_AP_PROMPT) {
+    return;
+  }
+  
   unsigned long elapsed = 0;
   if (currentState == RUNNING) {
     elapsed = millis() - startTime;

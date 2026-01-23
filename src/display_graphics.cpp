@@ -467,12 +467,85 @@ void drawGrid() {
   }
 }
 
+// --- Helper: truncate text to fit width (UTF-8 safe, works with Cyrillic) ---
+// Returns the number of bytes to use from the input string to fit within maxWidth
+// Optimized to avoid freezes - uses linear search with early exit
+static size_t truncateTextToWidth(const char* txt, int16_t maxWidth, const uint8_t* font, uint8_t textSize) {
+  if (!txt || strlen(txt) == 0) return 0;
+  
+  // Set font for measurement
+  gfx->setFont(font);
+  gfx->setTextSize(textSize, textSize, 0);
+  
+  size_t len = strlen(txt);
+  int16_t x1, y1;
+  uint16_t w, h;
+  
+  // Check if full text fits
+  gfx->getTextBounds(txt, 0, 0, &x1, &y1, &w, &h);
+  if (w <= maxWidth) {
+    gfx->setFont((const GFXfont*)nullptr);
+    return len;
+  }
+  
+  // Linear search from end (faster than binary search for short strings)
+  // For 6x8 font, characters are typically ~6px wide (same as default font)
+  // For 6x13 font, characters are ~6-7px wide
+  // Use 6px as estimate (works for both)
+  size_t startLen = (maxWidth / 6) + 3;  // +3 for "..."
+  if (startLen > len) startLen = len;
+  
+  // Work backwards to find the right length
+  for (size_t testLen = startLen; testLen > 0; testLen--) {
+    // Find the last complete UTF-8 character before testLen
+    size_t safeLen = testLen;
+    while (safeLen > 0 && (txt[safeLen] & 0xC0) == 0x80) {
+      safeLen--;  // Back up to start of UTF-8 character
+    }
+    
+    // Create test string with ellipsis
+    char testStr[128];
+    if (safeLen >= sizeof(testStr) - 4) safeLen = sizeof(testStr) - 4;
+    strncpy(testStr, txt, safeLen);
+    testStr[safeLen] = '\0';
+    strcat(testStr, "...");
+    
+    gfx->getTextBounds(testStr, 0, 0, &x1, &y1, &w, &h);
+    if (w <= maxWidth) {
+      gfx->setFont((const GFXfont*)nullptr);
+      return safeLen;
+    }
+    
+    // Decrement by estimated character width to speed up
+    if (safeLen > 5) {
+      testLen = safeLen - 3;  // Skip a few characters
+    }
+  }
+  
+  // Reset font
+  gfx->setFont((const GFXfont*)nullptr);
+  
+  return 0;  // Even first character doesn't fit
+}
+
 // --- Helper: centered text using getTextBounds ---
 void drawCenteredText(const char *txt, int16_t cx, int16_t cy, uint16_t color, uint8_t size) {
   int16_t x1, y1;
   uint16_t w, h;
-  // Use default GFX font (ASCII) for generic centered text
-  gfx->setFont((const GFXfont*)nullptr);
+  
+  // Check if text contains a colon (time format MM:SS) - use default font for time to ensure colon renders correctly
+  bool isTimeText = (strchr(txt, ':') != nullptr);
+  
+  if (isTimeText) {
+    // Use default GFX font for time display (ensures colon character renders correctly)
+    gfx->setFont((const GFXfont*)nullptr);
+  } else {
+    // Use 6x13 U8g2 font (ASCII) to match Cyrillic font size (6x13)
+    // This ensures consistent text size between ASCII and Cyrillic text
+    extern const uint8_t u8g2_font_6x13_tf[];
+    gfx->setFont(u8g2_font_6x13_tf);
+  }
+  
   gfx->setTextSize(size, size, 0);
   gfx->getTextBounds(txt, 0, 0, &x1, &y1, &w, &h);
   int16_t x = cx - (int16_t)w / 2;
@@ -482,6 +555,50 @@ void drawCenteredText(const char *txt, int16_t cx, int16_t cy, uint16_t color, u
   gfx->setCursor(x, y);
   gfx->setTextColor(color);
   gfx->print(txt);
+  // Reset to default font after use
+  gfx->setFont((const GFXfont*)nullptr);
+}
+
+// --- Helper: centered text with Cyrillic support and truncation ---
+static void drawCenteredTextCyrillic(const char *txt, int16_t cx, int16_t cy, uint16_t color, uint8_t size, int16_t maxWidth) {
+  // Use 6x13 Cyrillic font (smallest available Cyrillic font in U8g2)
+  // Note: 6x8 Cyrillic doesn't exist, so 6x13 is the closest match to default 6x8 font
+  extern const uint8_t u8g2_font_6x13_t_cyrillic[];
+  const uint8_t* cyrillicFont = u8g2_font_6x13_t_cyrillic;
+  
+  if (!txt || strlen(txt) == 0) return;
+  
+  // Truncate text if needed (optimized to avoid freezes)
+  size_t truncLen = truncateTextToWidth(txt, maxWidth, cyrillicFont, size);
+  
+  char displayText[128];
+  if (truncLen < strlen(txt)) {
+    // Text was truncated, add ellipsis
+    if (truncLen >= sizeof(displayText) - 4) truncLen = sizeof(displayText) - 4;
+    strncpy(displayText, txt, truncLen);
+    displayText[truncLen] = '\0';
+    strcat(displayText, "...");
+  } else {
+    strncpy(displayText, txt, sizeof(displayText) - 1);
+    displayText[sizeof(displayText) - 1] = '\0';
+  }
+  
+  // Draw with Cyrillic font
+  gfx->setFont(cyrillicFont);
+  gfx->setTextSize(size, size, 0);
+  gfx->setTextColor(color);
+  
+  int16_t x1, y1;
+  uint16_t w, h;
+  gfx->getTextBounds(displayText, 0, 0, &x1, &y1, &w, &h);
+  int16_t x = cx - (int16_t)w / 2;
+  // Use same vertical centering as default font (no offset needed for 6x13)
+  int16_t y = cy - y1 - (int16_t)h / 2;
+  gfx->setCursor(x, y);
+  gfx->print(displayText);
+  
+  // Reset to default font
+  gfx->setFont((const GFXfont*)nullptr);
 }
 
 // --- Helper: draw play icon (triangle) ---
@@ -933,12 +1050,42 @@ void drawB24Placeholder() {
   int16_t contentStartY = headerHeight;
   int16_t contentHeight = screenHeight - headerHeight;
   
+  // Cache group name if a group is selected (fetch only when needed to prevent freezes)
+  static uint32_t lastGroupId = 0;
+  static char cachedGroupName[128] = "";
+  static unsigned long lastGroupNameFetch = 0;
+  uint32_t currentGroupId = getBitrixSelectedGroupId();
+  
+  // Only fetch group name if group changed and cache is old (>5 minutes to prevent frequent refreshes)
+  // This prevents blocking/freezing during display updates
+  if (currentGroupId != 0) {
+    if (currentGroupId != lastGroupId || (lastGroupNameFetch == 0 || (millis() - lastGroupNameFetch > 300000))) {
+      // Fetch group name (this may be slow, but only happens on group change or every 5 minutes)
+      String groupName = bitrixGetGroupName(currentGroupId);
+      if (groupName.length() > 0) {
+        strncpy(cachedGroupName, groupName.c_str(), sizeof(cachedGroupName) - 1);
+        cachedGroupName[sizeof(cachedGroupName) - 1] = '\0';
+        lastGroupNameFetch = millis();
+      } else if (currentGroupId != lastGroupId) {
+        // Group changed but fetch failed, clear cache
+        cachedGroupName[0] = '\0';
+      }
+      lastGroupId = currentGroupId;
+    }
+  } else {
+    // No group selected, clear cache
+    cachedGroupName[0] = '\0';
+    lastGroupId = 0;
+    lastGroupNameFetch = 0;
+  }
+  
   // Helper function to draw a section (just circle with number, no text)
   // If totalUnreadCount > 0, label2 is ignored and subtitle shows "All msgs: [totalUnreadCount]" with number in red
   // If totalComments > 0, label2 is ignored and subtitle shows "All tasks: [totalComments]" with number in red
+  // If useCyrillic is true, label1 is drawn with Cyrillic font and truncated to fit width
   auto drawSection = [&](int16_t x, int16_t y, int16_t w, int16_t h, 
                          const char* label1, const char* label2, const char* badgeText, 
-                         uint16_t totalUnreadCount = 0, uint16_t totalComments = 0) {
+                         uint16_t totalUnreadCount = 0, uint16_t totalComments = 0, bool useCyrillic = false) {
     int16_t centerX = x + w / 2;
     int16_t centerY = y + h / 2;
     
@@ -947,7 +1094,15 @@ void drawB24Placeholder() {
     int16_t titleTopOffset = 12;  // Distance from top border to title (increase = move down)
     
     int16_t titleY = y + titleTopOffset;
-    drawCenteredText(label1, centerX, titleY, COLOR_WHITE, 1);
+    if (useCyrillic) {
+      // Use Cyrillic font with truncation
+      // In landscape mode, sections are wider, so use less padding to fit more text
+      int16_t padding = isLandscape ? 4 : 8;  // Less padding in landscape (2px each side vs 4px)
+      int16_t maxTitleWidth = w - padding;
+      drawCenteredTextCyrillic(label1, centerX, titleY, COLOR_WHITE, 1, maxTitleWidth);
+    } else {
+      drawCenteredText(label1, centerX, titleY, COLOR_WHITE, 1);
+    }
     
     // Calculate badge size - use most of available space with padding
     // ADJUSTABLE PARAMETERS for circle size calculation:
@@ -1037,20 +1192,19 @@ void drawB24Placeholder() {
       // Draw "All msgs: " in gray - use same vertical centering as drawCenteredText
       int16_t x1, y1;
       uint16_t textW, textH;
-      // Use default GFX font (ASCII) for subtitles
-      gfx->setFont((const GFXfont*)nullptr);
+      // Use 6x13 U8g2 font to match title font size
+      extern const uint8_t u8g2_font_6x13_tf[];
+      gfx->setFont(u8g2_font_6x13_tf);
       gfx->setTextSize(1, 1, 0);
       gfx->getTextBounds(subtitleText, 0, 0, &x1, &y1, &textW, &textH);
       
-      // ADJUSTABLE PARAMETER for subtitle vertical position:
-      // Adjust subtitleY to move text up (decrease) or down (increase)
-      // Formula matches drawCenteredText: cursorY = targetY - y1 - h/2
-      int16_t subtitleTextY = subtitleY - y1 - (int16_t)textH / 2;
+      // Save text's baseline offset and height BEFORE getting space bounds (which overwrites y1, textH)
+      int16_t textY1 = y1;  // Baseline offset for text
+      uint16_t textHeight = textH;  // Height of text bounding box
       
-      int16_t textX = centerX - textW / 2;
-      gfx->setCursor(textX, subtitleTextY);
-      gfx->setTextColor(COLOR_GRAY);
-      gfx->print(subtitleText);
+      // Get space character width for spacing
+      uint16_t spaceW;
+      gfx->getTextBounds(" ", 0, 0, &x1, &y1, &spaceW, &textH);
       
       // Draw number in red - get bounds for number text too
       char numberText[16];
@@ -1058,32 +1212,70 @@ void drawB24Placeholder() {
       int16_t numX1, numY1;
       uint16_t numW, numH;
       gfx->getTextBounds(numberText, 0, 0, &numX1, &numY1, &numW, &numH);
-      int16_t numberTextY = subtitleY - numY1 - (int16_t)numH / 2;
       
-      gfx->setCursor(textX + textW, numberTextY);
+      // Align baselines: use the text's baseline offset (textY1) for both text and number
+      // Formula: cursorY = targetY - y1 - h/2 (centers the bounding box at targetY)
+      // COORDINATES SET HERE (line 1220):
+      // Both text and number use the same baseline Y calculated from text's bounds
+      int16_t subtitleTextY = subtitleY - textY1 - (int16_t)textHeight / 2;
+      
+      // ADJUST THIS NUMBER to move number up (negative) or down (positive) relative to text:
+      // If number appears too high, increase this value (e.g., 1, 2, 3)
+      int16_t numberYOffset = 1;  // <-- ADJUST THIS: increase to move number down
+      int16_t numberTextY = subtitleTextY + numberYOffset;
+      
+      // ADJUST THIS NUMBER to add extra space between ":" and number:
+      // Increase this value to add more space (e.g., 2, 3, 4 pixels)
+      uint16_t extraSpace = 3;  // <-- ADJUST THIS: increase for more space
+      
+      // Calculate total width and center everything (include extra space)
+      uint16_t totalWidth = textW + spaceW + extraSpace + numW;
+      int16_t textX = centerX - totalWidth / 2;
+      
+      // COORDINATES SET HERE:
+      // Text "All msgs: " starts at: (textX, subtitleTextY)
+      // Space starts at: (textX + textW, subtitleTextY)
+      // Number starts at: (textX + textW + spaceW + extraSpace, numberTextY)
+      
+      // Draw text on its baseline
+      gfx->setCursor(textX, subtitleTextY);
+      gfx->setTextColor(COLOR_GRAY);
+      gfx->print(subtitleText);
+      
+      // Draw space (use text Y for space to keep it aligned)
+      gfx->setCursor(textX + textW, subtitleTextY);
+      gfx->print(" ");
+      
+      // Draw number in red (with extra space and Y offset)
+      gfx->setCursor(textX + textW + spaceW + extraSpace, numberTextY);
       gfx->setTextColor(COLOR_RED);
       gfx->print(numberText);
-    } else if (totalComments > 0) {
-      // Special case:
-      // - For selected group: "All tasks: [NUMBER]"
-      // - Otherwise: "All tasks: [NUMBER]"
+      // Reset font after use
+      gfx->setFont((const GFXfont*)nullptr);
+    } else if (label2 == nullptr || (totalComments > 0)) {
+      // Special case: Show "All tasks: [NUMBER]" when label2 is null (section 3 mode)
+      // or when totalComments > 0
+      // This is used for section 3 to show all active tasks count
+      // Always show when label2 is null (section 3 mode), even if count is 0
       char subtitleText[32];
       snprintf(subtitleText, sizeof(subtitleText), "All tasks: ");
       
       // Draw prefix in gray - use same vertical centering as drawCenteredText
       int16_t x1, y1;
       uint16_t textW, textH;
-      // Use default GFX font (ASCII) for subtitles / numbers
-      gfx->setFont((const GFXfont*)nullptr);
+      // Use 6x13 U8g2 font to match title font size
+      extern const uint8_t u8g2_font_6x13_tf[];
+      gfx->setFont(u8g2_font_6x13_tf);
       gfx->setTextSize(1, 1, 0);
       gfx->getTextBounds(subtitleText, 0, 0, &x1, &y1, &textW, &textH);
       
-      int16_t subtitleTextY = subtitleY - y1 - (int16_t)textH / 2;
+      // Save text's baseline offset and height BEFORE getting space bounds (which overwrites y1, textH)
+      int16_t textY1 = y1;  // Baseline offset for text
+      uint16_t textHeight = textH;  // Height of text bounding box
       
-      int16_t textX = centerX - textW / 2;
-      gfx->setCursor(textX, subtitleTextY);
-      gfx->setTextColor(COLOR_GRAY);
-      gfx->print(subtitleText);
+      // Get space character width for spacing
+      uint16_t spaceW;
+      gfx->getTextBounds(" ", 0, 0, &x1, &y1, &spaceW, &textH);
       
       // Draw number in red - get bounds for number text too
       char numberText[16];
@@ -1091,11 +1283,46 @@ void drawB24Placeholder() {
       int16_t numX1, numY1;
       uint16_t numW, numH;
       gfx->getTextBounds(numberText, 0, 0, &numX1, &numY1, &numW, &numH);
-      int16_t numberTextY = subtitleY - numY1 - (int16_t)numH / 2;
       
-      gfx->setCursor(textX + textW, numberTextY);
+      // Align baselines: use the text's baseline offset (textY1) for both text and number
+      // Formula: cursorY = targetY - y1 - h/2 (centers the bounding box at targetY)
+      // COORDINATES SET HERE (line 1283):
+      // Both text and number use the same baseline Y calculated from text's bounds
+      int16_t subtitleTextY = subtitleY - textY1 - (int16_t)textHeight / 2;
+      
+      // ADJUST THIS NUMBER to move number up (negative) or down (positive) relative to text:
+      // If number appears too high, increase this value (e.g., 1, 2, 3)
+      int16_t numberYOffset = 1;  // <-- ADJUST THIS: increase to move number down
+      int16_t numberTextY = subtitleTextY + numberYOffset;
+      
+      // ADJUST THIS NUMBER to add extra space between ":" and number:
+      // Increase this value to add more space (e.g., 2, 3, 4 pixels)
+      uint16_t extraSpace = 3;  // <-- ADJUST THIS: increase for more space
+      
+      // Calculate total width and center everything (include extra space)
+      uint16_t totalWidth = textW + spaceW + extraSpace + numW;
+      int16_t textX = centerX - totalWidth / 2;
+      
+      // COORDINATES SET HERE:
+      // Text "All tasks: " starts at: (textX, subtitleTextY)
+      // Space starts at: (textX + textW, subtitleTextY)
+      // Number starts at: (textX + textW + spaceW + extraSpace, numberTextY)
+      
+      // Draw text on its baseline
+      gfx->setCursor(textX, subtitleTextY);
+      gfx->setTextColor(COLOR_GRAY);
+      gfx->print(subtitleText);
+      
+      // Draw space (use text Y for space to keep it aligned)
+      gfx->setCursor(textX + textW, subtitleTextY);
+      gfx->print(" ");
+      
+      // Draw number in red (with extra space and Y offset)
+      gfx->setCursor(textX + textW + spaceW + extraSpace, numberTextY);
       gfx->setTextColor(COLOR_RED);
       gfx->print(numberText);
+      // Reset font after use
+      gfx->setFont((const GFXfont*)nullptr);
     } else if (label2) {
       drawCenteredText(label2, centerX, subtitleY, COLOR_GRAY, 1);
     }
@@ -1137,16 +1364,25 @@ void drawB24Placeholder() {
     drawSection(sectionWidth, contentStartY, sectionWidth, sectionHeight,
                 "Undone Tasks", "Auto & BP", taskCount);
     
-    // Section 3: Selected group or Expired Tasks (subtitle shows comments)
-    // Even if there is no data yet, always show a placeholder subtitle
-    // so the user sees at least some text (e.g. "All tasks") instead of an empty line.
-    const char* thirdSubtitle = (getBitrixSelectedGroupId() != 0) ? "(Delayed)" : "All tasks";
+    // Section 3: Selected group or Expired Tasks
+    // When no group selected: subtitle shows "All tasks: [NUMBER]" with all active tasks count
+    // When group selected: subtitle shows "All tasks: [NUMBER]" with group tasks count
+    const char* thirdSubtitle = nullptr;  // Will be handled by totalComments logic
+    const char* thirdTitle = (getBitrixSelectedGroupId() != 0) ? 
+      (cachedGroupName[0] != '\0' ? cachedGroupName : "Selected group") : 
+      "Expired Tasks";
+    bool useCyrillic = (getBitrixSelectedGroupId() != 0 && cachedGroupName[0] != '\0');
+    // For section 3, always pass totalComments to show "All tasks: [NUMBER]"
+    // When group selected: use groupComments (all tasks in group)
+    // When no group: use totalComments (all active tasks where user is responsible)
+    uint16_t section3Comments = (getBitrixSelectedGroupId() != 0) ? counts.groupComments : counts.totalComments;
     drawSection(sectionWidth * 2, contentStartY, sectionWidth, sectionHeight, 
-                (getBitrixSelectedGroupId() != 0) ? "Selected group" : "Expired Tasks",
+                thirdTitle,
                 thirdSubtitle,
                 thirdCount,
                 0,
-                (getBitrixSelectedGroupId() != 0) ? counts.groupComments : counts.totalComments);
+                section3Comments,  // Always show "All tasks: [NUMBER]" subtitle
+                useCyrillic);
     
     // Draw vertical dividers
     gfx->drawFastVLine(sectionWidth, contentStartY, sectionHeight, COLOR_GRAY);
@@ -1164,16 +1400,25 @@ void drawB24Placeholder() {
     drawSection(0, contentStartY + sectionHeight, sectionWidth, sectionHeight,
                 "Undone Tasks", "Auto & BP", taskCount);
     
-    // Section 3: Selected group or Expired Tasks (subtitle shows comments)
-    // Even if there is no data yet, always show a placeholder subtitle
-    // so the user sees at least some text (e.g. "All tasks") instead of an empty line.
-    const char* thirdSubtitle = (getBitrixSelectedGroupId() != 0) ? "(Delayed)" : "All tasks";
+    // Section 3: Selected group or Expired Tasks
+    // When no group selected: subtitle shows "All tasks: [NUMBER]" with all active tasks count
+    // When group selected: subtitle shows "All tasks: [NUMBER]" with group tasks count
+    const char* thirdSubtitle = nullptr;  // Will be handled by totalComments logic
+    const char* thirdTitle = (getBitrixSelectedGroupId() != 0) ? 
+      (cachedGroupName[0] != '\0' ? cachedGroupName : "Selected group") : 
+      "Expired Tasks";
+    bool useCyrillic = (getBitrixSelectedGroupId() != 0 && cachedGroupName[0] != '\0');
+    // For section 3, always pass totalComments to show "All tasks: [NUMBER]"
+    // When group selected: use groupComments (all tasks in group)
+    // When no group: use totalComments (all active tasks where user is responsible)
+    uint16_t section3Comments = (getBitrixSelectedGroupId() != 0) ? counts.groupComments : counts.totalComments;
     drawSection(0, contentStartY + sectionHeight * 2, sectionWidth, sectionHeight,
-                (getBitrixSelectedGroupId() != 0) ? "Selected group" : "Expired Tasks",
+                thirdTitle,
                 thirdSubtitle,
                 thirdCount,
                 0,
-                (getBitrixSelectedGroupId() != 0) ? counts.groupComments : counts.totalComments);
+                section3Comments,  // Always show "All tasks: [NUMBER]" subtitle
+                useCyrillic);
     
     // Draw horizontal dividers
     gfx->drawFastHLine(0, contentStartY + sectionHeight, screenWidth, COLOR_GRAY);
