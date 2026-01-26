@@ -6,6 +6,7 @@
 #include "color_utils.h"
 #include "bitrix24.h"
 #include "wifi_ap.h"
+#include "translations.h"
 #include "FreeSansBold24pt7b.h"
 #include <U8g2lib.h>
 #include <math.h>
@@ -533,17 +534,48 @@ void drawCenteredText(const char *txt, int16_t cx, int16_t cy, uint16_t color, u
   int16_t x1, y1;
   uint16_t w, h;
   
-  // Check if text contains a colon (time format MM:SS) - use default font for time to ensure colon renders correctly
-  bool isTimeText = (strchr(txt, ':') != nullptr);
+  // Detect time format like "MM:SS" / "HH:MM" (digits + colon only).
+  // NOTE: We must NOT treat other strings with ':' (e.g., "AP: вкл", "Пароль:") as time,
+  // otherwise Cyrillic would be drawn with the default ASCII font and look like rubbish.
+  bool isTimeText = false;
+  if (txt && strchr(txt, ':') != nullptr) {
+    bool hasDigit = false;
+    bool onlyDigitsAndColon = true;
+    for (const char *p = txt; *p; ++p) {
+      if (*p == ':') continue;
+      if (*p >= '0' && *p <= '9') {
+        hasDigit = true;
+        continue;
+      }
+      onlyDigitsAndColon = false;
+      break;
+    }
+    isTimeText = (hasDigit && onlyDigitsAndColon);
+  }
   
   if (isTimeText) {
     // Use default GFX font for time display (ensures colon character renders correctly)
     gfx->setFont((const GFXfont*)nullptr);
   } else {
-    // Use 6x13 U8g2 font (ASCII) to match Cyrillic font size (6x13)
-    // This ensures consistent text size between ASCII and Cyrillic text
-    extern const uint8_t u8g2_font_6x13_tf[];
-    gfx->setFont(u8g2_font_6x13_tf);
+    // Use U8g2 6x13 font. If text contains UTF-8 (Cyrillic), switch to Cyrillic-capable font.
+    // This keeps all UI strings working after menu translation to Russian.
+    bool hasNonAscii = false;
+    if (txt) {
+      for (const unsigned char *p = (const unsigned char *)txt; *p; ++p) {
+        if (*p >= 0x80) {  // non-ASCII byte => UTF-8 sequence
+          hasNonAscii = true;
+          break;
+        }
+      }
+    }
+
+    if (hasNonAscii) {
+      extern const uint8_t u8g2_font_6x13_t_cyrillic[];
+      gfx->setFont(u8g2_font_6x13_t_cyrillic);
+    } else {
+      extern const uint8_t u8g2_font_6x13_tf[];
+      gfx->setFont(u8g2_font_6x13_tf);
+    }
   }
   
   gfx->setTextSize(size, size, 0);
@@ -717,7 +749,7 @@ void drawColorPreview() {
     int16_t restX = centerX + 60;
     
     // Draw "WORK" label and color swatch on left (clickable)
-    drawCenteredText("WORK", workX, centerY - 40, workColor, 2);
+    drawCenteredText(TXT_WORK, workX, centerY - 40, workColor, 2);
     previewWorkSwatchLeft = workX - swatchWidth/2;
     previewWorkSwatchRight = workX + swatchWidth/2;
     previewWorkSwatchTop = centerY - swatchHeight/2;
@@ -727,7 +759,7 @@ void drawColorPreview() {
     previewWorkSwatchValid = true;
     
     // Draw "REST" label and color swatch on right (clickable)
-    drawCenteredText("REST", restX, centerY - 40, restColor, 2);
+    drawCenteredText(TXT_REST, restX, centerY - 40, restColor, 2);
     previewRestSwatchLeft = restX - swatchWidth/2;
     previewRestSwatchRight = restX + swatchWidth/2;
     previewRestSwatchTop = centerY - swatchHeight/2;
@@ -741,7 +773,7 @@ void drawColorPreview() {
     int16_t restY = centerY + 60;
     
     // Draw "WORK" label and color swatch at top (clickable)
-    drawCenteredText("WORK", centerX, workY - 30, workColor, 2);
+    drawCenteredText(TXT_WORK, centerX, workY - 30, workColor, 2);
     previewWorkSwatchLeft = centerX - swatchWidth/2;
     previewWorkSwatchRight = centerX + swatchWidth/2;
     previewWorkSwatchTop = workY - swatchHeight/2;
@@ -751,7 +783,7 @@ void drawColorPreview() {
     previewWorkSwatchValid = true;
     
     // Draw "REST" label and color swatch at bottom (clickable)
-    drawCenteredText("REST", centerX, restY - 30, restColor, 2);
+    drawCenteredText(TXT_REST, centerX, restY - 30, restColor, 2);
     previewRestSwatchLeft = centerX - swatchWidth/2;
     previewRestSwatchRight = centerX + swatchWidth/2;
     previewRestSwatchTop = restY - swatchHeight/2;
@@ -921,7 +953,7 @@ void drawMainFunctionality() {
                   mainMenuB24BtnRight - mainMenuB24BtnLeft,
                   mainMenuB24BtnBottom - mainMenuB24BtnTop,
                   btnColor);
-    drawCenteredText("B24", b24X, b24Y, btnColor, 2);
+    drawCenteredText(TXT_B24, b24X, b24Y, btnColor, 2);
     mainMenuB24BtnValid = true;
     
     // Tomato button (2nd)
@@ -964,8 +996,7 @@ void drawMainFunctionality() {
                   mainMenuAPBtnBottom - mainMenuAPBtnTop,
                   btnColor);
     // Draw "AP: on" or "AP: off" text (sync with actual AP state)
-    char apText[16];
-    snprintf(apText, sizeof(apText), "AP: %s", isAPActive() ? "on" : "off");
+    const char* apText = isAPActive() ? TXT_AP_ON : TXT_AP_OFF;
     drawCenteredText(apText, apX, apY, btnColor, 1);
     mainMenuAPBtnValid = true;
   } else {
@@ -984,7 +1015,7 @@ void drawMainFunctionality() {
                   mainMenuB24BtnRight - mainMenuB24BtnLeft,
                   mainMenuB24BtnBottom - mainMenuB24BtnTop,
                   btnColor);
-    drawCenteredText("B24", b24X, b24Y, btnColor, 2);
+    drawCenteredText(TXT_B24, b24X, b24Y, btnColor, 2);
     mainMenuB24BtnValid = true;
     
     // Tomato button (2nd)
@@ -1027,8 +1058,7 @@ void drawMainFunctionality() {
                   mainMenuAPBtnBottom - mainMenuAPBtnTop,
                   btnColor);
     // Draw "AP: on" or "AP: off" text (sync with actual AP state)
-    char apText[16];
-    snprintf(apText, sizeof(apText), "AP: %s", isAPActive() ? "on" : "off");
+    const char* apText = isAPActive() ? TXT_AP_ON : TXT_AP_OFF;
     drawCenteredText(apText, apX, apY, btnColor, 1);
     mainMenuAPBtnValid = true;
   }
@@ -1046,7 +1076,7 @@ void drawB24LoadingSpinner() {
   // Header
   int16_t headerHeight = 30;
   gfx->fillRect(0, 0, screenWidth, headerHeight, COLOR_DARK_BLUE);
-  drawCenteredText("Bitrix24", screenWidth / 2, headerHeight / 2, COLOR_WHITE, 2);
+  drawCenteredText(TXT_BITRIX24, screenWidth / 2, headerHeight / 2, COLOR_WHITE, 2);
   
   // Draw static hourglass/sand clock icon
   uint16_t hourglassColor = selectedWorkColor;
@@ -1104,7 +1134,7 @@ void drawB24LoadingSpinner() {
   gfx->drawLine(bottomLeft, bottomY, bottomRight, bottomY, hourglassColor);  // Bottom
   
   // "Loading..." text below hourglass
-  drawCenteredText("Loading...", centerX, centerY + hourglassHeight / 2 + 30, COLOR_GRAY, 1);
+  drawCenteredText(TXT_LOADING, centerX, centerY + hourglassHeight / 2 + 30, COLOR_GRAY, 1);
 }
 
 // --- Helper: draw B24 placeholder screen ---
@@ -1124,7 +1154,7 @@ void drawB24Placeholder() {
   // Header
   int16_t headerHeight = 30;
   gfx->fillRect(0, 0, screenWidth, headerHeight, COLOR_DARK_BLUE);
-  drawCenteredText("Bitrix24", screenWidth / 2, headerHeight / 2, COLOR_WHITE, 2);
+  drawCenteredText(TXT_BITRIX24, screenWidth / 2, headerHeight / 2, COLOR_WHITE, 2);
   
   int16_t contentStartY = headerHeight;
   int16_t contentHeight = screenHeight - headerHeight;
@@ -1266,14 +1296,14 @@ void drawB24Placeholder() {
     if (totalUnreadCount > 0) {
       // Special case: show "All msgs: [NUMBER]" with number in red
       char subtitleText[32];
-      snprintf(subtitleText, sizeof(subtitleText), "All msgs: ");
+      snprintf(subtitleText, sizeof(subtitleText), "%s", TXT_ALL_MSGS);
       
       // Draw "All msgs: " in gray - use same vertical centering as drawCenteredText
       int16_t x1, y1;
       uint16_t textW, textH;
-      // Use 6x13 U8g2 font to match title font size
-      extern const uint8_t u8g2_font_6x13_tf[];
-      gfx->setFont(u8g2_font_6x13_tf);
+      // Use 6x13 U8g2 Cyrillic font (subtitle is Russian)
+      extern const uint8_t u8g2_font_6x13_t_cyrillic[];
+      gfx->setFont(u8g2_font_6x13_t_cyrillic);
       gfx->setTextSize(1, 1, 0);
       gfx->getTextBounds(subtitleText, 0, 0, &x1, &y1, &textW, &textH);
       
@@ -1337,14 +1367,14 @@ void drawB24Placeholder() {
       // This is used for section 3 to show all active tasks count
       // Always show when label2 is null (section 3 mode), even if count is 0
       char subtitleText[32];
-      snprintf(subtitleText, sizeof(subtitleText), "All tasks: ");
+      snprintf(subtitleText, sizeof(subtitleText), "%s", TXT_ALL_TASKS);
       
       // Draw prefix in gray - use same vertical centering as drawCenteredText
       int16_t x1, y1;
       uint16_t textW, textH;
-      // Use 6x13 U8g2 font to match title font size
-      extern const uint8_t u8g2_font_6x13_tf[];
-      gfx->setFont(u8g2_font_6x13_tf);
+      // Use 6x13 U8g2 Cyrillic font (subtitle is Russian)
+      extern const uint8_t u8g2_font_6x13_t_cyrillic[];
+      gfx->setFont(u8g2_font_6x13_t_cyrillic);
       gfx->setTextSize(1, 1, 0);
       gfx->getTextBounds(subtitleText, 0, 0, &x1, &y1, &textW, &textH);
       
@@ -1437,19 +1467,19 @@ void drawB24Placeholder() {
     
     // Section 1: Unread Messages (show total unread in subtitle)
     drawSection(0, contentStartY, sectionWidth, sectionHeight, 
-                "Unread Messages", "(Dialogs)", msgCount, counts.totalUnreadMessages);
+                "Непрочитанные", "(Диалоги)", msgCount, counts.totalUnreadMessages);
     
     // Section 2: Undone Tasks
     drawSection(sectionWidth, contentStartY, sectionWidth, sectionHeight,
-                "Undone Tasks", "Auto & BP", taskCount);
+                "Задачи БП", "Автом. и БП", taskCount);
     
     // Section 3: Selected group or Expired Tasks
     // When no group selected: subtitle shows "All tasks: [NUMBER]" with all active tasks count
     // When group selected: subtitle shows "All tasks: [NUMBER]" with group tasks count
     const char* thirdSubtitle = nullptr;  // Will be handled by totalComments logic
     const char* thirdTitle = (getBitrixSelectedGroupId() != 0) ? 
-      (cachedGroupName[0] != '\0' ? cachedGroupName : "Selected group") : 
-      "Expired Tasks";
+      (cachedGroupName[0] != '\0' ? cachedGroupName : "Выбранная группа") : 
+      "Просроченные";
     bool useCyrillic = (getBitrixSelectedGroupId() != 0 && cachedGroupName[0] != '\0');
     // For section 3, always pass totalComments to show "All tasks: [NUMBER]"
     // When group selected: use groupComments (all tasks in group)
@@ -1473,19 +1503,19 @@ void drawB24Placeholder() {
     
     // Section 1: Unread Messages (show total unread in subtitle)
     drawSection(0, contentStartY, sectionWidth, sectionHeight,
-                "Unread Messages", "(Dialogs)", msgCount, counts.totalUnreadMessages);
+                "Непрочитанные", "(Диалоги)", msgCount, counts.totalUnreadMessages);
     
     // Section 2: Undone Tasks
     drawSection(0, contentStartY + sectionHeight, sectionWidth, sectionHeight,
-                "Undone Tasks", "Auto & BP", taskCount);
+                "Задачи БП", "Автом. и БП", taskCount);
     
     // Section 3: Selected group or Expired Tasks
     // When no group selected: subtitle shows "All tasks: [NUMBER]" with all active tasks count
     // When group selected: subtitle shows "All tasks: [NUMBER]" with group tasks count
     const char* thirdSubtitle = nullptr;  // Will be handled by totalComments logic
     const char* thirdTitle = (getBitrixSelectedGroupId() != 0) ? 
-      (cachedGroupName[0] != '\0' ? cachedGroupName : "Selected group") : 
-      "Expired Tasks";
+      (cachedGroupName[0] != '\0' ? cachedGroupName : "Выбранная группа") : 
+      "Просроченные";
     bool useCyrillic = (getBitrixSelectedGroupId() != 0 && cachedGroupName[0] != '\0');
     // For section 3, always pass totalComments to show "All tasks: [NUMBER]"
     // When group selected: use groupComments (all tasks in group)
@@ -1513,7 +1543,7 @@ void drawTelegramPrompt() {
   int16_t h = gfx->height();
 
   // Title near the top
-  drawCenteredText("Open TG bot", w / 2, 40, COLOR_WHITE, 2);
+  drawCenteredText(TXT_OPEN_TG_BOT, w / 2, 40, COLOR_WHITE, 2);
 
   // Icon circle in the middle
   int16_t cx = w / 2;
@@ -1578,35 +1608,33 @@ void drawAPPrompt() {
     startY = 60;
     lineHeight = 20;
     spacing = 5;
-    titleSize = 2;
+    // Russian title is longer; keep it on one line in portrait.
+    titleSize = 1;
     textSize = 1;
   }
   
   // Title at top
-  drawCenteredText("AP Mode Active", w / 2, titleY, COLOR_WHITE, titleSize);
+  drawCenteredText(TXT_AP_MODE_ACTIVE, w / 2, titleY, COLOR_WHITE, titleSize);
   
   // Instructions in the middle
   int16_t currentY = startY;
   
   // Instruction 1
-  String line1 = "1) Connect to WiFi";
-  drawCenteredText(line1.c_str(), w / 2, currentY, COLOR_WHITE, textSize);
+  drawCenteredText(TXT_CONNECT_TO_WIFI, w / 2, currentY, COLOR_WHITE, textSize);
   currentY += lineHeight;
   String ssidLine = String(apSSID);
   drawCenteredText(ssidLine.c_str(), w / 2, currentY, selectedWorkColor, textSize);
   currentY += lineHeight + spacing;
   
   // Instruction 2
-  String line2 = "2) Password is";
-  drawCenteredText(line2.c_str(), w / 2, currentY, COLOR_WHITE, textSize);
+  drawCenteredText(TXT_PASSWORD_IS, w / 2, currentY, COLOR_WHITE, textSize);
   currentY += lineHeight;
   String pwdLine = String(apPassword);
   drawCenteredText(pwdLine.c_str(), w / 2, currentY, selectedWorkColor, textSize);
   currentY += lineHeight + spacing;
   
   // Instruction 3
-  String line3 = "3) Go to AP page";
-  drawCenteredText(line3.c_str(), w / 2, currentY, COLOR_WHITE, textSize);
+  drawCenteredText(TXT_GO_TO_AP_PAGE, w / 2, currentY, COLOR_WHITE, textSize);
   currentY += lineHeight;
   String ipLine = "http://" + apIP;
   drawCenteredText(ipLine.c_str(), w / 2, currentY, selectedWorkColor, textSize);
