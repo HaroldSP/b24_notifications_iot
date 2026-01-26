@@ -106,5 +106,7 @@ extern int16_t tapIndicatorY;
 extern unsigned long tgPromptUntilMs;
 // Temporary AP prompt screen timer (for AP mode activation)
 extern unsigned long apPromptUntilMs;
+// B24 manual refresh flag (show spinner when user clicks B24 button)
+extern bool b24ManualRefresh;
 
 #endif // POMODORO_GLOBALS_H

@@ -373,9 +373,26 @@ void handleBitrix24() {
     hostname = "https://" + hostname;
   }
   
-  // Ensure restEndpoint starts with /
+  // Clean up restEndpoint: remove any protocol/hostname, keep only the path
+  // If user pasted full URL like "https://domain.bitrix24.ru/rest/123/abc/", extract just "/rest/123/abc/"
+  if (restEndpoint.indexOf("://") >= 0) {
+    // Contains protocol, extract path part
+    int pathStart = restEndpoint.indexOf("/", restEndpoint.indexOf("://") + 3);
+    if (pathStart >= 0) {
+      restEndpoint = restEndpoint.substring(pathStart);
+    } else {
+      // No path found, assume it's just the endpoint
+      restEndpoint = "/" + restEndpoint;
+    }
+  }
+  
+  // Ensure restEndpoint starts with / and ends with /
   if (!restEndpoint.startsWith("/")) {
     restEndpoint = "/" + restEndpoint;
+  }
+  // Ensure it ends with / (required for Bitrix24 REST API)
+  if (!restEndpoint.endsWith("/")) {
+    restEndpoint = restEndpoint + "/";
   }
   
   saveBitrix24Credentials(hostname.c_str(), restEndpoint.c_str());

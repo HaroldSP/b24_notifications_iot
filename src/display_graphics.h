@@ -12,6 +12,7 @@ void drawGrid();
 void drawColorPreview();
 void drawMainFunctionality();
 void drawB24Placeholder();
+void drawB24LoadingSpinner();
 void drawTelegramPrompt();
 void drawAPPrompt();
 void drawCenteredText(const char *txt, int16_t cx, int16_t cy, uint16_t color, uint8_t size);

@@ -36,6 +36,12 @@ void updateDisplay() {
     return;
   }
 
+  // B24 loading spinner: show static hourglass if manual refresh is active
+  // Don't redraw - spinner is already drawn in touch handler, just return to prevent other updates
+  if (currentViewMode == VIEW_MODE_B24 && b24ManualRefresh) {
+    return;  // Spinner already drawn, don't redraw (prevents flickering)
+  }
+  
   if (currentState == STOPPED) {
     // Check view mode: 0 = home, 1 = grid/palette, 2 = color preview, 3 = main menu, 4 = B24
     if (currentViewMode == VIEW_MODE_HOME && !gridViewActive) {
@@ -55,7 +61,7 @@ void updateDisplay() {
       return;
     }
     if (currentViewMode == VIEW_MODE_B24) {
-      // B24 screen is active, no need to update (static for now)
+      // B24 screen is static (no updates needed)
       return;
     }
     return;

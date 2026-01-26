@@ -107,3 +107,5 @@ int16_t tapIndicatorY = 0;
 unsigned long tgPromptUntilMs = 0;
 // Temporary AP prompt screen timer (for AP mode activation)
 unsigned long apPromptUntilMs = 0;
+// B24 manual refresh flag (show spinner when user clicks B24 button)
+bool b24ManualRefresh = false;

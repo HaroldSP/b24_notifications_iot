@@ -6,6 +6,7 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <string.h>
 
 #ifndef BITRIX_HOSTNAME
 #define BITRIX_HOSTNAME "https://npfreom.bitrix24.ru"
@@ -29,11 +30,40 @@ static void initBitrix24Credentials() {
       strncpy(bitrixHostname, BITRIX_HOSTNAME, sizeof(bitrixHostname) - 1);
       strncpy(bitrixRestEndpoint, BITRIX_REST_ENDPOINT, sizeof(bitrixRestEndpoint) - 1);
     }
+    
+    // Clean up REST endpoint: remove any protocol/hostname if accidentally included
+    // Use fast C string functions instead of String objects for better performance
+    char* protocolPos = strstr(bitrixRestEndpoint, "://");
+    if (protocolPos != NULL) {
+      // Contains protocol, extract path part
+      char* pathStart = strchr(protocolPos + 3, '/');
+      if (pathStart != NULL) {
+        // Move path to beginning of buffer
+        size_t pathLen = strlen(pathStart);
+        memmove(bitrixRestEndpoint, pathStart, pathLen + 1);
+      } else {
+        // No path found, assume it's just the endpoint
+        if (bitrixRestEndpoint[0] != '/') {
+          memmove(bitrixRestEndpoint + 1, bitrixRestEndpoint, strlen(bitrixRestEndpoint) + 1);
+          bitrixRestEndpoint[0] = '/';
+        }
+      }
+    }
+    // Ensure it ends with / (fast check)
+    size_t len = strlen(bitrixRestEndpoint);
+    if (len > 0 && bitrixRestEndpoint[len - 1] != '/') {
+      if (len < sizeof(bitrixRestEndpoint) - 1) {
+        bitrixRestEndpoint[len] = '/';
+        bitrixRestEndpoint[len + 1] = '\0';
+      }
+    }
   }
 }
 
 // Update interval: 30 seconds (30000 ms)
 unsigned long bitrix24UpdateInterval = 30000;
+// Minimum retry delay after a failed fetch: 30 seconds (prevents infinite loop, matches normal interval)
+static const unsigned long BITRIX24_MIN_RETRY_DELAY = 30000;
 
 // Cached counts
 static Bitrix24Counts cachedCounts = {0, 0, 0, 0, 0, 0, 0, false, 0};
@@ -53,6 +83,8 @@ static unsigned long bitrixTodayLastFetch = 0;
 // Helper: Make HTTP GET request to Bitrix24 REST API
 static String bitrix24Request(const char* method, const char* params = "") {
   if (WiFi.status() != WL_CONNECTED) {
+    Serial.print("Bitrix24: WiFi not connected, skipping ");
+    Serial.println(method);
     return "";
   }
 
@@ -66,6 +98,21 @@ static String bitrix24Request(const char* method, const char* params = "") {
     url += params;
   }
 
+  // Debug: Log URL structure for troubleshooting (mask endpoint secret)
+  int endpointLen = strlen(bitrixRestEndpoint);
+  Serial.print("Bitrix24: Calling ");
+  Serial.print(method);
+  Serial.print(" -> ");
+  Serial.print(bitrixHostname);
+  if (endpointLen > 15) {
+    // Show first 8 chars and last 3 chars of endpoint
+    Serial.print(String(bitrixRestEndpoint).substring(0, 8) + "...[masked]");
+  } else {
+    Serial.print("[endpoint]");
+  }
+  Serial.print(method);
+  Serial.println();
+
   http.begin(url);
   http.setTimeout(5000);
 
@@ -74,6 +121,23 @@ static String bitrix24Request(const char* method, const char* params = "") {
 
   if (httpCode == 200) {
     payload = http.getString();
+  } else {
+    Serial.print("Bitrix24 API error: ");
+    Serial.print(method);
+    Serial.print(" returned HTTP ");
+    Serial.println(httpCode);
+    // Show URL structure for debugging (mask endpoint secret)
+    Serial.print("  URL format: ");
+    Serial.print(bitrixHostname);
+    if (endpointLen > 15) {
+      Serial.print(String(bitrixRestEndpoint).substring(0, 8) + "...[masked]");
+    } else {
+      Serial.print("[endpoint]");
+    }
+    Serial.print(method);
+    Serial.println();
+    Serial.print("  Expected format: https://domain.bitrix24.ru/rest/USER_ID/WEBHOOK_CODE/method");
+    Serial.println();
   }
 
   http.end();
@@ -116,6 +180,12 @@ uint32_t getBitrixSelectedGroupId() {
   return selectedGroupId;
 }
 
+// Force immediate Bitrix24 update (invalidates cache)
+void forceBitrix24Update() {
+  cachedCounts.valid = false;
+  cachedCounts.lastUpdate = 0;  // Reset timestamp to allow immediate update
+}
+
 // Fetch current Bitrix24 user ID using user.current
 // This avoids hardcoding USER_ID (e.g. 17) and always uses the webhook's user
 static bool fetchCurrentUserId() {
@@ -126,6 +196,7 @@ static bool fetchCurrentUserId() {
 
   String response = bitrix24Request("user.current", "");
   if (response.length() == 0) {
+    Serial.println("Bitrix24: fetchCurrentUserId - empty response");
     return false;
   }
 
@@ -134,10 +205,13 @@ static bool fetchCurrentUserId() {
   response = "";
 
   if (err) {
+    Serial.print("Bitrix24: fetchCurrentUserId - JSON parse error: ");
+    Serial.println(err.c_str());
     return false;
   }
 
   if (!doc["result"].is<JsonObject>()) {
+    Serial.println("Bitrix24: fetchCurrentUserId - result is not an object");
     return false;
   }
 
@@ -457,6 +531,7 @@ static bool fetchUnreadMessages(uint16_t* count) {
 
   String response = bitrix24Request("im.counters.get", "");
   if (response.length() == 0) {
+    Serial.println("Bitrix24: fetchUnreadMessages - empty response");
     return false;
   }
 
@@ -464,7 +539,14 @@ static bool fetchUnreadMessages(uint16_t* count) {
   DeserializationError err = deserializeJson(doc, response);
   response = "";
 
-  if (err || !doc["result"].is<JsonObject>()) {
+  if (err) {
+    Serial.print("Bitrix24: fetchUnreadMessages - JSON parse error: ");
+    Serial.println(err.c_str());
+    return false;
+  }
+  
+  if (!doc["result"].is<JsonObject>()) {
+    Serial.println("Bitrix24: fetchUnreadMessages - result is not an object");
     return false;
   }
 
@@ -830,6 +912,8 @@ bool fetchBitrix24Counts(Bitrix24Counts* counts) {
   counts->valid = success;
   counts->lastUpdate = millis();
 
+  // Always update cache timestamp (even on failure) to prevent infinite retry loop
+  // The shouldUpdateBitrix24() function will enforce minimum retry delay
   cachedCounts = *counts;
   
   // Check for changes and send notifications
@@ -867,16 +951,25 @@ Bitrix24Counts getBitrix24Counts() {
 
 // Check if update is needed
 bool shouldUpdateBitrix24() {
-  if (!cachedCounts.valid) {
-    return true;
+  // Don't update if WiFi is not connected (prevents infinite retry loop)
+  if (WiFi.status() != WL_CONNECTED) {
+    return false;
   }
-
+  
   unsigned long now = millis();
   if (now < cachedCounts.lastUpdate) {
     // millis() overflow, force refresh
     return true;
   }
+  
+  unsigned long timeSinceLastUpdate = now - cachedCounts.lastUpdate;
+  
+  // If cache is invalid, only retry after minimum delay (prevents infinite loop)
+  if (!cachedCounts.valid) {
+    return timeSinceLastUpdate >= BITRIX24_MIN_RETRY_DELAY;
+  }
 
-  return (now - cachedCounts.lastUpdate) >= bitrix24UpdateInterval;
+  // Normal interval check for valid cache
+  return timeSinceLastUpdate >= bitrix24UpdateInterval;
 }
 

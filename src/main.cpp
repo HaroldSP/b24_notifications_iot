@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <Arduino_GFX_Library.h>
 #include <Wire.h>
+#include <WiFi.h>
 #include <math.h>
 #include <Preferences.h>
 #include <FastIMU.h>
@@ -125,11 +126,16 @@ void loop() {
   handleAPWebServer();
   
   // Update Bitrix24 counts periodically (non-blocking)
-  // Skip updates when AP is active (WiFi is disconnected)
-  if (!isAPActive() && shouldUpdateBitrix24()) {
+  // Skip updates when AP is active OR WiFi is not connected (prevents infinite retry loop)
+  if (!isAPActive() && WiFi.status() == WL_CONNECTED && shouldUpdateBitrix24()) {
     // Don't block - update in background
     Bitrix24Counts counts;
+    bool wasManualRefresh = b24ManualRefresh;  // Remember if this was a manual refresh
     bool success = fetchBitrix24Counts(&counts);
+    // If manual refresh was active, clear the flag and show normal screen
+    if (wasManualRefresh) {
+      b24ManualRefresh = false;
+    }
     // If we're on B24 screen, redraw it with new data
     if (currentViewMode == VIEW_MODE_B24 && success) {
       drawB24Placeholder();

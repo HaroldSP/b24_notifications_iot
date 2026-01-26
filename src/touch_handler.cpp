@@ -12,6 +12,7 @@
 #include "bitrix24.h"
 #include "wifi_ap.h"
 #include <Wire.h>
+#include <WiFi.h>
 #include <string.h>
 
 // Touch detection variables
@@ -516,10 +517,16 @@ void handleTouchInput() {
           drawMainFunctionality();
         }
       } else if (inMainMenuB24Btn) {
-        // B24 button clicked - open B24 placeholder screen
+        // B24 button clicked - open B24 placeholder screen and force immediate update
         Serial.println("*** MAIN MENU B24 BUTTON CLICKED ***");
         currentViewMode = VIEW_MODE_B24;
+        // Set manual refresh flag to show spinner (fetch will happen in main loop)
+        b24ManualRefresh = true;
+        // Force immediate Bitrix24 update when user clicks B24 button
+        forceBitrix24Update();
+        // Draw loading spinner immediately
         drawB24Placeholder();
+        // Don't fetch here - let main loop handle it so spinner can animate
       } else if (inMainMenuTomatoBtn) {
         // Tomato button clicked - return to home/timer screen and start timer
         Serial.println("*** MAIN MENU TOMATO BUTTON CLICKED ***");
@@ -658,11 +665,12 @@ void handleTouchInput() {
       // Don't reset - only one long press per touch
     }
   }
-  static unsigned long lastDebug = 0;
-  if (millis() - lastDebug > 2000) {
-    Serial.print(digitalRead(TP_INT));
-    Serial.print(touch_points.touch_num);
-    Serial.println(touchPressed);
-    lastDebug = millis();
-  }
+  // Debug output disabled to reduce serial spam
+  // static unsigned long lastDebug = 0;
+  // if (millis() - lastDebug > 2000) {
+  //   Serial.print(digitalRead(TP_INT));
+  //   Serial.print(touch_points.touch_num);
+  //   Serial.println(touchPressed);
+  //   lastDebug = millis();
+  // }
 }
