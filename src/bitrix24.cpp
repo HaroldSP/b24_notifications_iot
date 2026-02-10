@@ -80,6 +80,22 @@ static uint32_t bitrixCurrentUserId = 0;
 static String bitrixTodayDate;
 static unsigned long bitrixTodayLastFetch = 0;
 
+// Notification rate-limits and thresholds
+static const unsigned long UNREAD_NOTIFY_RATE_MS = 5UL * 60UL * 1000UL; // 5 minutes
+static const uint16_t UNREAD_NOTIFY_DELTA = 3; // require at least +3 change to notify outside immediate transitions
+static unsigned long lastUnreadNotifyMs = 0;
+static uint16_t lastUnreadNotifiedCount = 0;
+
+static const unsigned long UNDONE_NOTIFY_RATE_MS = 10UL * 60UL * 1000UL; // 10 minutes
+static const uint16_t UNDONE_NOTIFY_DELTA = 2;
+static unsigned long lastUndoneNotifyMs = 0;
+static uint16_t lastUndoneNotifiedCount = 0;
+
+static const unsigned long EXPIRED_NOTIFY_RATE_MS = 15UL * 60UL * 1000UL; // 15 minutes
+static const uint16_t EXPIRED_NOTIFY_DELTA = 1;
+static unsigned long lastExpiredNotifyMs = 0;
+static uint16_t lastExpiredNotifiedCount = 0;
+
 // Helper: Make HTTP GET request to Bitrix24 REST API
 static String bitrix24Request(const char* method, const char* params = "") {
   if (WiFi.status() != WL_CONNECTED) {
@@ -786,72 +802,120 @@ static bool fetchTotalComments(uint16_t* count) {
   return true;
 }
 
-// Check for changes and send Telegram notifications
+// Check for changes and send Telegram notifications (status is edited in-place; alerts are rate-limited and may be queued)
 static void checkAndNotifyChanges(const Bitrix24Counts& newCounts) {
-  // Skip if previous counts are not valid (first run)
+  // Always update the single editable status message with current counts
+  String status = "📌 Bitrix — 📨 ";
+  status += String(newCounts.unreadMessages);
+  status += " • 📋 ";
+  status += String(newCounts.undoneTasks);
+  status += " • ⏰ ";
+  // Show group delayed if group mode active
+  if (getBitrixSelectedGroupId() != 0) status += String(newCounts.groupDelayedTasks);
+  else status += String(newCounts.expiredTasks);
+  queueBitrixStatusUpdate(status);
+
+  unsigned long now = millis();
+
+  // Skip if previous counts are not valid (first run) — initialize rate-limit baseline
   if (!previousCounts.valid) {
     previousCounts = newCounts;
+    lastUnreadNotifiedCount = newCounts.unreadMessages;
+    lastUndoneNotifiedCount = newCounts.undoneTasks;
+    lastExpiredNotifiedCount = (getBitrixSelectedGroupId() != 0) ? newCounts.groupDelayedTasks : newCounts.expiredTasks;
+    lastUnreadNotifyMs = now;
+    lastUndoneNotifyMs = now;
+    lastExpiredNotifyMs = now;
     return;
   }
 
-  // Check for changes in the 3 main numbers
+  // Helper: absolute difference
+  auto absdiff = [](int a, int b)->int { return (a > b) ? (a - b) : (b - a); };
+
+  // Unread messages: immediate on 0<>>0 transitions; otherwise notify when delta >= threshold AND rate allows
   if (previousCounts.unreadMessages != newCounts.unreadMessages) {
-    String msg = "📨 <b>Unread Messages:</b> ";
-    msg += String(newCounts.unreadMessages);
-    if (newCounts.unreadMessages > previousCounts.unreadMessages) {
-      msg += " ⬆️";
+    bool zeroTransition = (previousCounts.unreadMessages == 0 && newCounts.unreadMessages > 0) ||
+                          (previousCounts.unreadMessages > 0 && newCounts.unreadMessages == 0);
+    int deltaSinceLastNotify = absdiff((int)newCounts.unreadMessages, (int)lastUnreadNotifiedCount);
+
+    if (zeroTransition || (deltaSinceLastNotify >= (int)UNREAD_NOTIFY_DELTA && (now - lastUnreadNotifyMs) >= UNREAD_NOTIFY_RATE_MS)) {
+      String msg = "📨 <b>Unread Messages:</b> " + String(newCounts.unreadMessages);
+      int trend = (int)newCounts.unreadMessages - (int)previousCounts.unreadMessages;
+      msg += (trend > 0) ? " ⬆️" : " ⬇️";
+      queueBitrixAlert(msg);
+      lastUnreadNotifiedCount = newCounts.unreadMessages;
+      lastUnreadNotifyMs = now;
     } else {
-      msg += " ⬇️";
+      // Suppress immediate alert to avoid spam; still accumulate if user is focusing
+      if (isWorkSession) {
+        String msg = "📨 <b>Unread Messages (suppressed):</b> " + String(newCounts.unreadMessages);
+        queueBitrixAlert(msg);
+      }
     }
-    sendTelegramMessage(msg);
   }
 
+  // Undone tasks: similar logic but with its thresholds
   if (previousCounts.undoneTasks != newCounts.undoneTasks) {
-    String msg = "📋 <b>Undone Tasks:</b> ";
-    msg += String(newCounts.undoneTasks);
-    if (newCounts.undoneTasks > previousCounts.undoneTasks) {
-      msg += " ⬆️";
+    bool zeroTransition = (previousCounts.undoneTasks == 0 && newCounts.undoneTasks > 0) ||
+                          (previousCounts.undoneTasks > 0 && newCounts.undoneTasks == 0);
+    int deltaSinceLastNotify = absdiff((int)newCounts.undoneTasks, (int)lastUndoneNotifiedCount);
+
+    if (zeroTransition || (deltaSinceLastNotify >= (int)UNDONE_NOTIFY_DELTA && (now - lastUndoneNotifyMs) >= UNDONE_NOTIFY_RATE_MS)) {
+      String msg = "📋 <b>Undone Tasks:</b> " + String(newCounts.undoneTasks);
+      msg += (newCounts.undoneTasks > previousCounts.undoneTasks) ? " ⬆️" : " ⬇️";
+      queueBitrixAlert(msg);
+      lastUndoneNotifiedCount = newCounts.undoneTasks;
+      lastUndoneNotifyMs = now;
     } else {
-      msg += " ⬇️";
+      if (isWorkSession) {
+        String msg = "📋 <b>Undone Tasks (suppressed):</b> " + String(newCounts.undoneTasks);
+        queueBitrixAlert(msg);
+      }
     }
-    sendTelegramMessage(msg);
   }
 
-  // Check for expired/delayed tasks changes
-  // If a group is selected, check groupDelayedTasks and include group name
-  // Otherwise, check expiredTasks (global)
+  // Expired / Group delayed: handle group mode separately but with same rate-limit logic
   uint32_t currentGroupId = getBitrixSelectedGroupId();
   if (currentGroupId != 0) {
-    // Group mode: check for changes in groupDelayedTasks
     if (previousCounts.groupDelayedTasks != newCounts.groupDelayedTasks) {
-      String msg = "⏰ <b>Expired Tasks:</b> ";
-      msg += String(newCounts.groupDelayedTasks);
-      if (newCounts.groupDelayedTasks > previousCounts.groupDelayedTasks) {
-        msg += " ⬆️";
+      int deltaSinceLastNotify = absdiff((int)newCounts.groupDelayedTasks, (int)lastExpiredNotifiedCount);
+      bool zeroTransition = (previousCounts.groupDelayedTasks == 0 && newCounts.groupDelayedTasks > 0) ||
+                            (previousCounts.groupDelayedTasks > 0 && newCounts.groupDelayedTasks == 0);
+      if (zeroTransition || (deltaSinceLastNotify >= (int)EXPIRED_NOTIFY_DELTA && (now - lastExpiredNotifyMs) >= EXPIRED_NOTIFY_RATE_MS)) {
+        String msg = "⏰ <b>Expired Tasks:</b> " + String(newCounts.groupDelayedTasks);
+        msg += (newCounts.groupDelayedTasks > previousCounts.groupDelayedTasks) ? " ⬆️" : " ⬇️";
+        String groupName = bitrixGetGroupName(currentGroupId);
+        if (groupName.length() > 0) {
+          msg += "\n📁 <b>Group:</b> ";
+          msg += groupName;
+        }
+        queueBitrixAlert(msg);
+        lastExpiredNotifiedCount = newCounts.groupDelayedTasks;
+        lastExpiredNotifyMs = now;
       } else {
-        msg += " ⬇️";
+        if (isWorkSession) {
+          String msg = "⏰ <b>Expired Tasks (suppressed):</b> " + String(newCounts.groupDelayedTasks);
+          queueBitrixAlert(msg);
+        }
       }
-      
-      // Add group name to the message
-      String groupName = bitrixGetGroupName(currentGroupId);
-      if (groupName.length() > 0) {
-        msg += "\n📁 <b>Group:</b> ";
-        msg += groupName;
-      }
-      
-      sendTelegramMessage(msg);
     }
   } else {
-    // Global mode: check for changes in expiredTasks (no group info)
     if (previousCounts.expiredTasks != newCounts.expiredTasks) {
-      String msg = "⏰ <b>Expired Tasks:</b> ";
-      msg += String(newCounts.expiredTasks);
-      if (newCounts.expiredTasks > previousCounts.expiredTasks) {
-        msg += " ⬆️";
+      int deltaSinceLastNotify = absdiff((int)newCounts.expiredTasks, (int)lastExpiredNotifiedCount);
+      bool zeroTransition = (previousCounts.expiredTasks == 0 && newCounts.expiredTasks > 0) ||
+                            (previousCounts.expiredTasks > 0 && newCounts.expiredTasks == 0);
+      if (zeroTransition || (deltaSinceLastNotify >= (int)EXPIRED_NOTIFY_DELTA && (now - lastExpiredNotifyMs) >= EXPIRED_NOTIFY_RATE_MS)) {
+        String msg = "⏰ <b>Expired Tasks:</b> " + String(newCounts.expiredTasks);
+        msg += (newCounts.expiredTasks > previousCounts.expiredTasks) ? " ⬆️" : " ⬇️";
+        queueBitrixAlert(msg);
+        lastExpiredNotifiedCount = newCounts.expiredTasks;
+        lastExpiredNotifyMs = now;
       } else {
-        msg += " ⬇️";
+        if (isWorkSession) {
+          String msg = "⏰ <b>Expired Tasks (suppressed):</b> " + String(newCounts.expiredTasks);
+          queueBitrixAlert(msg);
+        }
       }
-      sendTelegramMessage(msg);
     }
   }
 

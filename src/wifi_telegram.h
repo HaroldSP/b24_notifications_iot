@@ -40,4 +40,12 @@ void processTelegramCommands();
 void startTelegramTask();
 void reloadCredentials();  // Reload credentials from NVS (call after saving via web interface)
 
+// Bitrix -> Telegram helpers
+// Update or create a single status message (editable) showing current counts
+void queueBitrixStatusUpdate(const String& statusHtml);
+// Queue an alert message (respects Pomodoro mute and may accumulate)
+void queueBitrixAlert(const String& alertHtml);
+// Flush accumulated alerts (send digest). Called automatically at end of work session.
+void flushBitrixAlerts();
+
 #endif // WIFI_TELEGRAM_H

@@ -173,6 +173,16 @@ struct TelegramMsg {
 char lastQueuedMessage[256] = "";
 unsigned long lastSentTime = 0;
 
+// Status message / edit-in-place support
+static long bitrixStatusMessageId = 0;               // Telegram message_id of the persisted status message (0 = none)
+static char bitrixStatusPending[256] = "";         // Pending HTML text for status (set by queueBitrixStatusUpdate)
+static bool bitrixStatusDirty = false;               // Whether status needs to be sent/edited
+
+// Accumulated alerts while in Pomodoro work session
+static String bitrixMissedAlerts = "";             // Concatenated missed alert lines
+static uint16_t bitrixMissedCount = 0;               // Number of missed alerts
+static bool lastIsWorkSession = false;               // Last known pomodoro work state (for transitions)
+
 // Mutex for telegram operations
 SemaphoreHandle_t telegramMutex = nullptr;
 
@@ -304,6 +314,48 @@ void sendTelegramMessage(const String& message) {
   }
 }
 
+// Helper: Queue or set a single status message (editable)
+void queueBitrixStatusUpdate(const String& statusHtml) {
+  if (statusHtml.length() == 0) return;
+  // Safe to set pending status even if telegramMutex isn't ready yet
+  if (telegramMutex != nullptr) {
+    if (xSemaphoreTake(telegramMutex, pdMS_TO_TICKS(500)) == pdTRUE) {
+      statusHtml.toCharArray(bitrixStatusPending, sizeof(bitrixStatusPending));
+      bitrixStatusDirty = true;
+      xSemaphoreGive(telegramMutex);
+    }
+  } else {
+    statusHtml.toCharArray(bitrixStatusPending, sizeof(bitrixStatusPending));
+    bitrixStatusDirty = true;
+  }
+}
+
+// Helper: Queue an alert. If we're in a focused work session, accumulate; otherwise send immediately.
+void queueBitrixAlert(const String& alertHtml) {
+  if (alertHtml.length() == 0) return;
+  // If user is focusing, accumulate alerts to send at the end of session
+  if (isWorkSession) {
+    if (bitrixMissedAlerts.length() > 0) bitrixMissedAlerts += "\n";
+    bitrixMissedAlerts += alertHtml;
+    bitrixMissedCount++;
+    Serial.print("[B24] Accumulated alert (now "); Serial.print(bitrixMissedCount); Serial.println(")");
+  } else {
+    sendTelegramMessage(alertHtml);
+  }
+}
+
+// Send accumulated alerts as a single digest (clears buffer)
+void flushBitrixAlerts() {
+  if (bitrixMissedCount == 0) return;
+  String msg = "🔕 <b>Missed while focusing:</b> ";
+  msg += String(bitrixMissedCount);
+  msg += " events\n\n";
+  msg += bitrixMissedAlerts;
+  sendTelegramMessage(msg);
+  bitrixMissedAlerts = "";
+  bitrixMissedCount = 0;
+}
+
 // Telegram task - sends queued messages in background
 void telegramTask(void* parameter) {
   Serial.println("[TG TASK] Started");
@@ -326,7 +378,59 @@ void telegramTask(void* parameter) {
         Serial.println("[TG TASK] Done");
       }
     }
-    
+
+    // Handle status edit (single editable status message)
+    if (bitrixStatusDirty && bot != nullptr) {
+      // Lock while we touch status variables
+      if (telegramMutex != nullptr) xSemaphoreTake(telegramMutex, pdMS_TO_TICKS(500));
+
+      String pending = String(bitrixStatusPending);
+
+      // Helper: parse message_id from Telegram API JSON reply
+      auto parseMessageId = [](const String& resp) -> long {
+        int p = resp.indexOf("\"message_id\":");
+        if (p < 0) return 0;
+        int n = p + 13; // length of "message_id":
+        while (n < (int)resp.length() && (resp[n] == ' ' || resp[n] == '"' || resp[n] == ':' )) n++;
+        int m = n;
+        while (m < (int)resp.length() && resp[m] >= '0' && resp[m] <= '9') m++;
+        if (m > n) return resp.substring(n, m).toInt();
+        return 0;
+      };
+
+      if (bitrixStatusMessageId == 0) {
+        // No existing status message: send a new one and try to capture message_id
+        String resp = bot->sendMessage(chatId, pending, "HTML");
+        long mid = parseMessageId(resp);
+        if (mid > 0) bitrixStatusMessageId = mid;
+      } else {
+        // Try to edit existing message
+        String resp = "";
+        // If library supports editMessageText(chatId, text, parseMode, message_id)
+        // use it; otherwise fallback to sending a new message.
+        #ifdef __has_include
+        // Attempt to call editMessageText - if not available linker will complain; fallback handled below.
+        #endif
+        resp = bot->editMessageText(chatId, pending, "HTML", (int)bitrixStatusMessageId);
+        if (resp.length() == 0 || resp.indexOf("\"ok\":false") >= 0) {
+          // Edit failed => send a new message and update message id
+          String resp2 = bot->sendMessage(chatId, pending, "HTML");
+          long mid = parseMessageId(resp2);
+          if (mid > 0) bitrixStatusMessageId = mid;
+        }
+      }
+
+      bitrixStatusDirty = false;
+      if (telegramMutex != nullptr) xSemaphoreGive(telegramMutex);
+    }
+
+    // Detect end of work session and flush accumulated alerts
+    if (lastIsWorkSession && !isWorkSession) {
+      Serial.println("[B24] Work session ended — flushing accumulated alerts");
+      flushBitrixAlerts();
+    }
+    lastIsWorkSession = isWorkSession;
+
     // Check for incoming commands (less frequently)
     static unsigned long lastCheck = 0;
     if (millis() - lastCheck > BOT_CHECK_INTERVAL && bot != nullptr) {
