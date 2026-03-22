@@ -17,6 +17,13 @@
 // Loading
 #define TXT_LOADING "Загрузка..."  // English: "Loading..."
 
+// Cold start (setup) — status lines under hourglass
+#define TXT_COLD_START_TITLE "Запуск"  // English: "Startup"
+#define TXT_COLD_START_INIT "Инициализация…"  // English: "Initializing…"
+#define TXT_COLD_START_WIFI "Подключение Wi‑Fi…"  // English: "Connecting Wi‑Fi…"
+#define TXT_COLD_START_TELEGRAM "Telegram…"  // English: "Telegram…"
+#define TXT_COLD_START_BITRIX "Bitrix24…"  // English: "Bitrix24…"
+
 // Color Preview
 #define TXT_WORK "РАБОТА"  // English: "WORK"
 #define TXT_REST "ОТДЫХ"  // English: "REST"

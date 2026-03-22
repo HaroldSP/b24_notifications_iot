@@ -26,6 +26,7 @@
 #include "auto_rotation.h"
 #include "bitrix24.h"
 #include "wifi_ap.h"
+#include "translations.h"
 
 // Suppress core dump error messages early (before setup runs)
 // This runs during static initialization, before setup()
@@ -51,6 +52,12 @@ void setup(void) {
   // This means WiFi credentials, color preferences, etc. will be reset
   // This is expected ESP32 behavior when modifying partition layout
 
+  // Backlight on before LCD init (Waveshare: LCD_BL)
+#ifdef GFX_BL
+  pinMode(GFX_BL, OUTPUT);
+  digitalWrite(GFX_BL, HIGH);
+#endif
+
   if (!gfx->begin()) {
     Serial.println("gfx->begin() failed!");
   }
@@ -62,11 +69,10 @@ void setup(void) {
   // Enable UTF-8 printing for Cyrillic support
   gfx->setUTF8Print(true);
 
-#ifdef GFX_BL
-  pinMode(GFX_BL, OUTPUT);
-  digitalWrite(GFX_BL, HIGH);
+  // Cold start: sand watch + status (Wi‑Fi / Telegram / Bitrix are slow)
+  drawColdStartLoadingScreen(TXT_COLD_START_TITLE, TXT_COLD_START_INIT);
+
   Serial.println("Initializing I2C for touch...");
-#endif
 
   // Init I2C for touch
   Serial.println("Initializing touch controller...");
@@ -95,16 +101,19 @@ void setup(void) {
 
   // Load saved color from NVS
   loadSelectedColor();
-  
+
+  drawColdStartLoadingScreen(TXT_COLD_START_TITLE, TXT_COLD_START_WIFI);
   // Connect to WiFi
   connectWiFi();
-  
+
+  drawColdStartLoadingScreen(TXT_COLD_START_TITLE, TXT_COLD_START_TELEGRAM);
   // Initialize Telegram bot
   initTelegramBot();
-  
+
   // Start Telegram task on separate core
   startTelegramTask();
-  
+
+  drawColdStartLoadingScreen(TXT_COLD_START_TITLE, TXT_COLD_START_BITRIX);
   // Initialize Bitrix24
   initBitrix24();
 

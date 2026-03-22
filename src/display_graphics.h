@@ -13,6 +13,8 @@ void drawColorPreview();
 void drawMainFunctionality();
 void drawB24Placeholder();
 void drawB24LoadingSpinner();
+/** Cold boot / setup: hourglass + header + status line (UTF-8 Cyrillic OK). */
+void drawColdStartLoadingScreen(const char* headerTitle, const char* statusLine);
 void drawTelegramPrompt();
 void drawAPPrompt();
 void drawCenteredText(const char *txt, int16_t cx, int16_t cy, uint16_t color, uint8_t size);

@@ -5,8 +5,9 @@
 #include "color_utils.h"
 #include <Arduino_GFX_Library.h>
 
-// Display objects
-Arduino_DataBus *bus = new Arduino_HWSPI(15 /* DC */, 14 /* CS */, 1 /* SCK */, 2 /* MOSI */);
+// Display: Touch-вариант 1.47" (Waveshare ESP32-C6-Touch-LCD-1.47 / Spotpear): SCK=1, MOSI=2, MISO=3, CS=14, DC=15, RST=22, BL=23
+// Не путать с non-touch wiki (MOSI=6, SCLK=7, RST=21, BL=22) — иначе чёрный экран.
+Arduino_DataBus *bus = new Arduino_HWSPI(15 /* DC */, 14 /* CS */, 1 /* SCK */, 2 /* MOSI */, 3 /* MISO */);
 Arduino_GFX *gfx = new Arduino_ST7789(
   bus, 22 /* RST */, 0 /* rotation */, false /* IPS */,
   172 /* width */, 320 /* height */,

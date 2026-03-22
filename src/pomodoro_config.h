@@ -5,7 +5,9 @@
 
 #include <Arduino.h>
 
-// Backlight pin (official: GPIO23 = LCD_BL)
+// Backlight: зависит от ревизии платы
+// - ESP32-C6-LCD-1.47 (без тача, wiki): LCD_BL = GPIO22
+// - ESP32-C6-Touch-LCD-1.47 / Spotpear 1.47" touch: LCD_BL = GPIO23 (см. Arduino_GFX discussion #693)
 #define GFX_BL 23
 
 // Rotation (0 = portrait, like official demo)

@@ -1064,77 +1064,61 @@ void drawMainFunctionality() {
   }
 }
 
-// --- Helper: draw loading spinner for B24 ---
-void drawB24LoadingSpinner() {
-  gfx->fillScreen(COLOR_BLACK);
-  
-  int16_t screenWidth = gfx->width();
-  int16_t screenHeight = gfx->height();
-  int16_t centerX = screenWidth / 2;
-  int16_t centerY = screenHeight / 2;
-  
-  // Header
-  int16_t headerHeight = 30;
-  gfx->fillRect(0, 0, screenWidth, headerHeight, COLOR_DARK_BLUE);
-  drawCenteredText(TXT_BITRIX24, screenWidth / 2, headerHeight / 2, COLOR_WHITE, 2);
-  
-  // Draw static hourglass/sand clock icon
+// --- Static hourglass (shared: B24 manual load + cold start) ---
+static void drawHourglassSandWatch(int16_t centerX, int16_t centerY) {
   uint16_t hourglassColor = selectedWorkColor;
-  int16_t hourglassTopWidth = 40;  // Wider at top
-  int16_t hourglassBottomWidth = 40;  // Wider at bottom
-  int16_t hourglassMiddleWidth = 4;  // Narrow in the middle (waist)
+  int16_t hourglassTopWidth = 40;
+  int16_t hourglassBottomWidth = 40;
+  int16_t hourglassMiddleWidth = 4;
   int16_t hourglassHeight = 50;
   int16_t hourglassY = centerY - hourglassHeight / 2;
   int16_t middleY = centerY;
   int16_t bottomY = hourglassY + hourglassHeight;
-  
-  // Hourglass coordinates
+
   int16_t topLeft = centerX - hourglassTopWidth / 2;
   int16_t topRight = centerX + hourglassTopWidth / 2;
   int16_t middleLeft = centerX - hourglassMiddleWidth / 2;
   int16_t middleRight = centerX + hourglassMiddleWidth / 2;
   int16_t bottomLeft = centerX - hourglassBottomWidth / 2;
   int16_t bottomRight = centerX + hourglassBottomWidth / 2;
-  
-  // Draw hourglass using filled triangles for top and bottom halves
-  // Top half: wider at top, narrow at middle
-  gfx->fillTriangle(
-    topLeft, hourglassY,      // Top left
-    topRight, hourglassY,     // Top right
-    middleRight, middleY,     // Middle right
-    hourglassColor
-  );
-  gfx->fillTriangle(
-    topLeft, hourglassY,      // Top left
-    middleLeft, middleY,      // Middle left
-    middleRight, middleY,      // Middle right
-    hourglassColor
-  );
-  
-  // Bottom half: narrow at middle, wider at bottom
-  gfx->fillTriangle(
-    middleLeft, middleY,      // Middle left
-    middleRight, middleY,     // Middle right
-    bottomRight, bottomY,     // Bottom right
-    hourglassColor
-  );
-  gfx->fillTriangle(
-    middleLeft, middleY,      // Middle left
-    bottomLeft, bottomY,       // Bottom left
-    bottomRight, bottomY,     // Bottom right
-    hourglassColor
-  );
-  
-  // Draw outline for better definition
-  gfx->drawLine(topLeft, hourglassY, topRight, hourglassY, hourglassColor);  // Top
-  gfx->drawLine(topLeft, hourglassY, middleLeft, middleY, hourglassColor);  // Left top
-  gfx->drawLine(topRight, hourglassY, middleRight, middleY, hourglassColor);  // Right top
-  gfx->drawLine(middleLeft, middleY, bottomLeft, bottomY, hourglassColor);  // Left bottom
-  gfx->drawLine(middleRight, middleY, bottomRight, bottomY, hourglassColor);  // Right bottom
-  gfx->drawLine(bottomLeft, bottomY, bottomRight, bottomY, hourglassColor);  // Bottom
-  
-  // "Loading..." text below hourglass
-  drawCenteredText(TXT_LOADING, centerX, centerY + hourglassHeight / 2 + 30, COLOR_GRAY, 1);
+
+  gfx->fillTriangle(topLeft, hourglassY, topRight, hourglassY, middleRight, middleY, hourglassColor);
+  gfx->fillTriangle(topLeft, hourglassY, middleLeft, middleY, middleRight, middleY, hourglassColor);
+  gfx->fillTriangle(middleLeft, middleY, middleRight, middleY, bottomRight, bottomY, hourglassColor);
+  gfx->fillTriangle(middleLeft, middleY, bottomLeft, bottomY, bottomRight, bottomY, hourglassColor);
+
+  gfx->drawLine(topLeft, hourglassY, topRight, hourglassY, hourglassColor);
+  gfx->drawLine(topLeft, hourglassY, middleLeft, middleY, hourglassColor);
+  gfx->drawLine(topRight, hourglassY, middleRight, middleY, hourglassColor);
+  gfx->drawLine(middleLeft, middleY, bottomLeft, bottomY, hourglassColor);
+  gfx->drawLine(middleRight, middleY, bottomRight, bottomY, hourglassColor);
+  gfx->drawLine(bottomLeft, bottomY, bottomRight, bottomY, hourglassColor);
+}
+
+void drawColdStartLoadingScreen(const char* headerTitle, const char* statusLine) {
+  if (!headerTitle) headerTitle = "";
+  if (!statusLine) statusLine = "";
+
+  gfx->fillScreen(COLOR_BLACK);
+
+  int16_t screenWidth = gfx->width();
+  int16_t screenHeight = gfx->height();
+  int16_t centerX = screenWidth / 2;
+  int16_t centerY = screenHeight / 2;
+
+  int16_t headerHeight = 30;
+  gfx->fillRect(0, 0, screenWidth, headerHeight, COLOR_DARK_BLUE);
+  drawCenteredText(headerTitle, screenWidth / 2, headerHeight / 2, COLOR_WHITE, 2);
+
+  drawHourglassSandWatch(centerX, centerY);
+
+  int16_t hourglassHeight = 50;
+  drawCenteredText(statusLine, centerX, centerY + hourglassHeight / 2 + 30, COLOR_GRAY, 1);
+}
+
+// --- Helper: draw loading spinner for B24 (same look as cold start, Bitrix header) ---
+void drawB24LoadingSpinner() {
+  drawColdStartLoadingScreen(TXT_BITRIX24, TXT_LOADING);
 }
 
 // --- Helper: draw B24 placeholder screen ---
